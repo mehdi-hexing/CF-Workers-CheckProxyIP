@@ -111,7 +111,7 @@ export default {
       }
 
       try {
-        const response = await fetch(`http://ip-api.com/json/${ip}?lang=zh-CN`); //
+        const response = await fetch(`http://ip-api.com/json/${ip}?lang=zh-CN`); // Using the ip-api.com endpoint from the original code
 
         if (!response.ok) { //
           throw new Error(`HTTP error: ${response.status}`); //
@@ -234,7 +234,7 @@ async function CheckProxyIP(proxyIP) { //
     const httpRequest = //
       "GET /cdn-cgi/trace HTTP/1.1\r\n" +
       "Host: speed.cloudflare.com\r\n" +
-      "User-Agent: CheckProxyIP/cmliu\r\n" +
+      "User-Agent: CheckProxyIP/mehdi-hexing\r\n" +
       "Connection: close\r\n\r\n";
 
     const writer = tcpSocket.writable.getWriter(); //
@@ -355,7 +355,7 @@ async function HTML(hostname, 网站图标, token) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Proxy IP Checker Service</title>
+  <title>Check ProxyIP Service</title>
   <link rel="icon" href="${网站图标}" type="image/x-icon">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -377,190 +377,131 @@ async function HTML(hostname, 网站图标, token) {
       --border-radius: 12px; /* */
       --border-radius-sm: 8px; /* */
     }
-    *, *::before, *::after { box-sizing: border-box; }
-    body { 
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-      color: var(--text-primary); 
-      line-height: 1.6; 
-      margin:0; 
-      padding:0; 
-      min-height: 100vh; 
-      display: flex; 
-      flex-direction: column; 
-      align-items: center; 
-      overflow-x: hidden; 
+    body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: var(--text-primary); line-height: 1.6; margin:0; padding:0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; /* */ }
+    .container { max-width: 800px; width: 100%; margin: 20px auto; padding: 20px; box-sizing: border-box; } /* Added box-sizing */
+    .header { text-align: center; margin-bottom: 30px; } /* */
+    .main-title { font-size: 2.5rem; font-weight: 700; background: linear-gradient(135deg, #ffffff 0%, #f0f0f0 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; } /* */
+    .card { background: var(--bg-primary); border-radius: var(--border-radius); padding: 25px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); margin-bottom: 25px; } /* */
+    .form-section { display: flex; flex-direction: column; align-items: center; }
+    .form-label { display: block; font-weight: 500; margin-bottom: 8px; color: var(--text-primary); width: 100%; max-width: 400px; text-align: left;} /* */
+    .input-wrapper { width: 100%; max-width: 400px; margin-bottom: 15px; }
+    .form-input { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.95rem; box-sizing: border-box; } /* Added box-sizing */
+    .btn-primary { background: linear-gradient(135deg, var(--primary-color), var(--primary-dark)); color: white; padding: 12px 25px; border: none; border-radius: var(--border-radius-sm); font-size: 1rem; font-weight: 500; cursor: pointer; width: 100%; max-width: 400px; box-sizing: border-box; } /* Added box-sizing */
+    .btn-primary:disabled { background: #bdc3c7; cursor: not-allowed; } /* */
+    .btn-secondary { background-color: var(--bg-secondary); color: var(--text-primary); padding: 8px 15px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.9rem; cursor: pointer; margin-top: 15px; }
+    .loading-spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 1s linear infinite; display: none; margin-left: 8px; } /* */
+    @keyframes spin { to { transform: rotate(360deg); } } /* */
+    .result-section { margin-top: 25px; } /* */
+    .result-card { padding: 18px; border-radius: var(--border-radius-sm); margin-bottom: 12px; } /* */
+    .result-success { background-color: #d4edda; border-left: 4px solid var(--success-color); color: #155724; } /* */
+    .result-error { background-color: #f8d7da; border-left: 4px solid var(--error-color); color: #721c24; } /* */
+    .result-warning { background-color: #fff3cd; border-left: 4px solid var(--warning-color); color: #856404;} /* */
+    .copy-btn { background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 4px 8px; border-radius: 4px; font-size: 0.85em; cursor: pointer; margin-left: 8px;} /* */
+    .toast { position: fixed; bottom: 20px; right: 20px; background: #333; color: white; padding: 12px 20px; border-radius:var(--border-radius-sm); z-index:1000; opacity:0; transition: opacity 0.3s; box-sizing: border-box;} /* Added box-sizing */
+    .toast.show { opacity:1; } /* */
+    #rangeResultChartContainer { margin-top: 15px; padding:10px; background-color: var(--bg-secondary); border-radius: var(--border-radius-sm); }
+    .api-docs { margin-top: 30px; padding: 25px; background: var(--bg-primary); border-radius: var(--border-radius); } /* */
+     .api-docs p code { /* Style for code blocks in API docs */
+        display: inline-block;
+        background-color: #f0f0f0;
+        padding: 2px 5px;
+        border-radius: 4px;
+        font-family: monospace;
     }
-    .container { 
-      max-width: 800px; 
-      width: 90%; 
-      margin: 20px auto; 
-      padding: 0; 
-    }
-    .header { text-align: center; margin-bottom: 30px; margin-top: 20px;}
-    .main-title { 
-      font-size: 2.5rem; 
-      font-weight: 700; 
-      background: linear-gradient(135deg, #ffffff 0%, #f0f0f0 100%); 
-      -webkit-background-clip: text; 
-      -webkit-text-fill-color: transparent; 
-      color: transparent; 
-    }
-    .card { 
-      background: var(--bg-primary); 
-      border-radius: var(--border-radius); 
-      padding: 25px; 
-      box-shadow: 0 8px 20px rgba(0,0,0,0.1); 
-      margin-bottom: 25px; 
-    }
-    .form-section { 
-      display: flex; 
-      flex-direction: column; 
-      align-items: center; 
-    }
-    .input-wrapper { 
-      width: 100%; 
-      max-width: 450px; 
-      margin-bottom: 18px; 
-    }
-    .form-label { 
-      display: block; 
-      font-weight: 500; 
-      margin-bottom: 8px; 
-      color: var(--text-primary); 
-      width: 100%; 
-      text-align: left;
-    }
-    .form-input { 
-      width: 100%; 
-      padding: 12px; 
-      border: 1px solid var(--border-color); 
-      border-radius: var(--border-radius-sm); 
-      font-size: 0.95rem; 
-    }
-    .btn { 
-      padding: 12px 25px;
-      border: none;
-      border-radius: var(--border-radius-sm);
-      font-size: 1rem;
-      font-weight: 500;
-      cursor: pointer;
-      text-align: center;
-      display: inline-flex; 
-      align-items: center;
-      justify-content: center;
-      transition: background-color 0.2s ease, transform 0.1s ease;
-    }
-    .btn:active {
-        transform: translateY(1px);
-    }
-    .btn-primary { 
-      background: linear-gradient(135deg, var(--primary-color), var(--primary-dark)); 
-      color: white; 
-      width: 100%; 
-      max-width: 450px; 
-    }
-    .btn-primary:disabled { background: #bdc3c7; cursor: not-allowed; transform: none; }
-    .btn-secondary { 
-      background-color: var(--bg-secondary); 
-      color: var(--text-primary); 
-      border: 1px solid var(--border-color); 
-      margin-top: 15px; 
-    }
-    .btn-secondary:hover { background-color: #e9ecef; }
-
-    .loading-spinner { 
-      width: 16px; height: 16px; 
-      border: 2px solid rgba(255,255,255,0.3); 
-      border-top-color: white; 
-      border-radius: 50%; 
-      animation: spin 1s linear infinite; 
-      display: none; 
-      margin-left: 8px; 
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .result-section { margin-top: 25px; }
-    .result-card { padding: 18px; border-radius: var(--border-radius-sm); margin-bottom: 12px; }
-    .result-success { background-color: #d4edda; border-left: 4px solid var(--success-color); color: #155724; }
-    .result-error { background-color: #f8d7da; border-left: 4px solid var(--error-color); color: #721c24; }
-    .result-warning { background-color: #fff3cd; border-left: 4px solid var(--warning-color); color: #856404;}
-    .copy-btn { 
-      background: var(--bg-secondary); 
-      border: 1px solid var(--border-color); 
-      padding: 4px 8px; 
-      border-radius: 4px; 
-      font-size: 0.85em; 
-      cursor: pointer; 
-      margin-left: 8px;
-      transition: background-color 0.2s ease;
-    }
-    .copy-btn:hover { background-color: #e9ecef; }
-    .toast { 
-      position: fixed; 
-      bottom: 20px; right: 20px; 
-      background: #333; color: white; 
-      padding: 12px 20px; 
-      border-radius:var(--border-radius-sm); 
-      z-index:1000; opacity:0; 
-      transition: opacity 0.3s ease; 
-      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-    }
-    .toast.show { opacity:1; }
-    #rangeResultChartContainer { 
-      margin-top: 15px; padding:10px; 
-      background-color: var(--bg-secondary); 
-      border-radius: var(--border-radius-sm); 
-      width:100%; 
-      position: relative; 
-    }
-    .api-docs { margin-top: 30px; padding: 25px; background: var(--bg-primary); border-radius: var(--border-radius); }
-    .api-docs p { 
-      word-wrap: break-word; 
-      overflow-wrap: break-word; 
-      margin-bottom: 0.5em;
-    }
-    .api-docs code {
-      background-color: #f0f0f0;
-      padding: 0.2em 0.4em;
-      border-radius: 3px;
-      font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-      white-space: pre-wrap; 
-    }
-    .footer { text-align: center; padding: 20px; margin-top: auto; color: rgba(255,255,255,0.8); font-size: 0.85em; width:100%; border-top: 1px solid rgba(255,255,255,0.1); }
+    .footer { text-align: center; padding: 20px; margin-top: 30px; color: rgba(255,255,255,0.8); font-size: 0.85em; border-top: 1px solid rgba(255,255,255,0.1); } /* */
     .flex-align-center { display: flex; align-items: center; justify-content: center; }
-    
-    .github-corner { position: fixed; top: 0; right: 0; border: 0; z-index: 1001; }
-    .github-corner svg { fill: var(--bg-primary); color: var(--primary-color); width: 80px; height: 80px;} /* */
-    .github-corner .octo-arm{transform-origin:130px 106px} /* */
+    .github-corner svg { fill: #fff; color: var(--primary-color); position: fixed; top: 0; border: 0; right: 0; z-index: 1001;} /* */
+    .octo-arm{transform-origin:130px 106px} /* */
     .github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out} /* */
     @keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}} /* */
-
-    @media (max-width: 768px) { 
-      .container { width: 95%; padding-left: 10px; padding-right: 10px; }
-      .main-title { font-size: 2.1rem; }
-      .input-wrapper, .btn-primary { max-width: 100%; } 
-      .github-corner svg { width: 60px; height: 60px; } /* */
-      .api-docs p, .api-docs code { font-size: 0.9rem; }
+    
+    .ip-item { /* Styles for individual IP items in domain results */
+        padding:8px 5px; 
+        border-bottom:1px solid #f0f0f0; 
+        display:flex; 
+        justify-content:space-between; 
+        align-items:center;
+        flex-wrap: wrap; /* Allow wrapping if content is too long */
+    }
+    .ip-item > div:first-child { /* Container for IP and its info */
+        flex-grow: 1; /* Allow it to take available space */
+        margin-right: 10px; /* Space before status icon */
+    }
+     .ip-item .status-icon {
+        flex-shrink: 0; /* Prevent status icon from shrinking */
     }
 
-    @media (max-width: 480px) { 
-      .main-title { font-size: 1.8rem; }
-      .card { padding: 20px; }
-      .form-input, .btn { font-size: 0.9rem; padding: 10px; }
-      .api-docs { padding: 15px; }
-      .api-docs h3 { font-size: 1.2rem; }
-      .api-docs p, .api-docs code { font-size: 0.8rem; }
-      .github-corner svg { width: 50px; height: 50px; }
-      .github-corner:hover .octo-arm{animation:none}  /* */
-      .github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out} /* */
-      #rangeResultChartContainer { max-height: 300px; }
+    /* Mobile-specific styles */
+    @media (max-width: 600px) {
+      .container {
+        padding: 10px; /* Reduce padding */
+        margin: 10px auto;
+      }
+      .header {
+        margin-bottom: 15px;
+      }
+      .main-title {
+        font-size: 1.8rem; /* Reduce font size for main title */
+      }
+      .card, .api-docs {
+        padding: 15px; /* Reduce padding for cards */
+        margin-bottom: 20px;
+      }
+      .form-label {
+        font-size: 0.9rem; /* Adjust label font size */
+        margin-bottom: 6px;
+      }
+      .form-input {
+        padding: 10px;
+        font-size: 0.9rem; /* Adjust input font size */
+      }
+      .btn-primary {
+        padding: 10px 15px; /* Adjust button padding */
+        font-size: 0.95rem;
+      }
+      .btn-secondary {
+         padding: 7px 12px;
+         font-size: 0.8rem;
+      }
+      .api-docs p code {
+        word-break: break-all; /* Allow long code strings to break nicely */
+      }
+      .toast {
+        left: 10px;
+        right: 10px;
+        bottom: 10px;
+        width: auto; /* Let it adjust to content up to max-width */
+        max-width: calc(100% - 20px); /* Ensure it fits with padding */
+        text-align: center;
+      }
+      .ip-grid {
+         font-size: 0.9em; /* Slightly smaller font for IP list items */
+      }
+      .ip-item {
+        flex-direction: column; /* Stack IP and status vertically */
+        align-items: flex-start; /* Align to the start */
+      }
+      .ip-item > div:first-child { /* The div containing the copy-btn and ip-info span */
+        margin-bottom: 5px; /* Add some space between IP and status icon */
+        margin-right: 0; /* Remove right margin as it's stacked now */
+      }
+       .ip-item .copy-btn {
+        margin-left: 0; /* No left margin for copy button if IP is first */
+        margin-right: 5px; /* Space between copy button and IP info if on same line internally */
+      }
+       #rangeResultChartContainer {
+         /* Consider reducing max-height if it takes too much vertical space on mobile */
+         /* max-height: 300px; */
+      }
+    }
+    @media (max-width:500px){ /* This existing query mostly handles github corner animation */
+        .github-corner:hover .octo-arm{animation:none}
+        .github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}
     }
   </style>
 </head>
 <body>
-  <a href="https://github.com/cmliu/CF-Workers-CheckProxyIP" target="_blank" class="github-corner" aria-label="View source on Github"><svg viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+  <a href="https://github.com/mehdi-hexing/CF-Workers-CheckProxyIP" target="_blank" class="github-corner" aria-label="View source on Github"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
   <div class="container">
     <header class="header">
       <h1 class="main-title">Proxy IP Checker</h1>
@@ -573,12 +514,12 @@ async function HTML(hostname, 网站图标, token) {
           <input type="text" id="proxyip" class="form-input" placeholder="e.g., 1.2.3.4:443 or example.com" autocomplete="off">
         </div>
         
-        <label for="proxyipRange" class="form-label">Enter IP Range (CIDR /23-/24 or Simple 1.2.3.1-255):</label>
+        <label for="proxyipRange" class="form-label">Enter IP Range (e.g., 1.2.3.0/24 or 1.2.3.1-255):</label>
         <div class="input-wrapper">
-          <input type="text" id="proxyipRange" class="form-input" placeholder="e.g., 10.0.0.0/24 or 192.168.1.1-255" autocomplete="off">
+          <input type="text" id="proxyipRange" class="form-input" placeholder="1.2.3.0/24 or 1.2.3.1-255 (last octet only for simple range)" autocomplete="off">
         </div>
 
-        <button id="checkBtn" class="btn btn-primary" onclick="checkInputs()">
+        <button id="checkBtn" class="btn-primary" onclick="checkInputs()">
           <span class="flex-align-center">
             <span class="btn-text">Check</span>
             <span class="loading-spinner"></span>
@@ -587,25 +528,25 @@ async function HTML(hostname, 网站图标, token) {
       </div>
       
       <div id="result" class="result-section"></div>
-      <div id="rangeResultCard" class="result-card result-section" style="display:none; text-align: center;">
+      <div id="rangeResultCard" class="result-card result-section" style="display:none;">
          <h4>Successful IPs in Range:</h4>
-         <div id="rangeResultChartContainer">
+         <div id="rangeResultChartContainer" style="width:100%; max-height:400px; margin: 15px auto; overflow-x: auto;">
             <canvas id="rangeSuccessChart"></canvas>
          </div>
          <div id="rangeResultSummary" style="margin-bottom: 10px;"></div>
-         <button id="copyRangeBtn" class="btn btn-secondary" onclick="copySuccessfulRangeIPs()" style="display:none;">Copy Successful IPs</button>
+         <button id="copyRangeBtn" class="btn-secondary" onclick="copySuccessfulRangeIPs()" style="display:none;">Copy Successful IPs</button>
       </div>
     </div>
     
     <div class="api-docs">
-       <h3 style="margin-bottom:15px; text-align:center;">API Documentation</h3>
+       <h3 style="margin-bottom:10px;">API Documentation</h3>
        <p><code>GET /check?proxyip=YOUR_PROXY_IP&token=YOUR_TOKEN_IF_SET</code></p>
        <p><code>GET /resolve?domain=YOUR_DOMAIN&token=YOUR_TOKEN_IF_SET</code></p>
        <p><code>GET /ip-info?ip=TARGET_IP&token=YOUR_TOKEN_IF_SET</code></p>
     </div>
 
     <footer class="footer">
-      <p>© ${new Date().getFullYear()} Proxy IP Checker - By <strong>cmliu</strong> | Modified by Gemini</p>
+      <p>© ${new Date().getFullYear()} Proxy IP Checker - By <strong>mehdi-hexing</strong> | Modified by mehdi-hexing</p>
     </footer>
   </div>
 
@@ -617,7 +558,7 @@ async function HTML(hostname, 网站图标, token) {
     let pageLoadTimestamp; //
     const TEMP_TOKEN = "${token}"; 
     let rangeChartInstance = null;
-    let currentSuccessfulRangeIPs = [];
+    let currentSuccessfulRangeIPs = []; // To store IPs for the copy button
 
     function calculateTimestamp() { //
       const currentDate = new Date(); //
@@ -677,13 +618,9 @@ async function HTML(hostname, 网站图标, token) {
     function copyToClipboard(text, element, successMessage = "Copied!") { //
       navigator.clipboard.writeText(text).then(() => { //
         const originalText = element ? element.textContent : ''; //
-        if(element && element.classList.contains('btn')) { 
-             element.textContent = 'Copied ✓';
-        } else if (element && element.classList.contains('copy-btn')) { 
-             element.textContent = '✓';
-        }
+        if(element) element.textContent = 'Copied ✓'; //
         showToast(successMessage); //
-        if(element && originalText) setTimeout(() => { element.textContent = originalText; }, 2000); //
+        if(element) setTimeout(() => { element.textContent = originalText; }, 2000); //
       }).catch(err => { showToast('Copy failed. Please copy manually.'); }); //
     }
     
@@ -705,56 +642,21 @@ async function HTML(hostname, 网站图标, token) {
       return ipv4Regex.test(input) || ipv6Regex.test(input) || ipv6WithPortRegex.test(input) || ipv4WithPortRegex.test(input); //
     }
 
-    function ipToLong(ip) {
-        let ipl = 0;
-        ip.split('.').forEach(function(octet) {
-            ipl <<= 8;
-            ipl += parseInt(octet);
-        });
-        return(ipl >>> 0);
-    }
-
-    function longToIp(ipl) {
-        return ( (ipl >>> 24) +'.' +
-                 (ipl >> 16 & 255) +'.' +
-                 (ipl >> 8 & 255) +'.' +
-                 (ipl & 255) );
-    }
-
     function parseIPRange(rangeInput) {
         const ips = [];
         rangeInput = rangeInput.trim();
-        
-        const cidrMatch = rangeInput.match(/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\/(\d{1,2})$/);
-        if (cidrMatch) {
-            const baseIpStr = cidrMatch[1];
-            const prefixSize = parseInt(cidrMatch[2]);
-
-            // Limit CIDR prefix size to /23 and /24 as requested
-            if (prefixSize < 23 || prefixSize > 24) { 
-                showToast('Only CIDR prefixes /23 and /24 are supported.');
-                return [];
-            }
-
-            try {
-                const baseIpLong = ipToLong(baseIpStr);
-                const mask = (0xFFFFFFFF << (32 - prefixSize)) >>> 0;
-                const networkAddress = (baseIpLong & mask) >>> 0;
-                const numAddresses = Math.pow(2, 32 - prefixSize);
-                
-                for (let i = 0; i < numAddresses; i++) {
-                     const currentIpLong = (networkAddress + i) >>> 0;
-                     ips.push(longToIp(currentIpLong));
+        if (/^(\\d{1,3}\\.){3}\\d{1,3}\\/24$/.test(rangeInput)) {
+            const baseIp = rangeInput.split('/')[0];
+            const baseParts = baseIp.split('.');
+            if (baseParts.length === 4 ) {
+                for (let i = 1; i <= 255; i++) {
+                    ips.push(\`\${baseParts[0]}.\${baseParts[1]}.\${baseParts[2]}.\${i}\`);
                 }
-            } catch (e) {
-                showToast('Error parsing CIDR IP address.');
-                console.error("CIDR parsing error:", e);
-                return [];
+            } else {
+                 showToast('Invalid CIDR format. Expected x.x.x.0/24.');
             }
-        }
-        // ########## START OF CORRECTED LINE ##########
-        else if (/^(\d{1,3}\.){3}\d{1,3}-\d{1,3}$/.test(rangeInput)) { 
-        // ########## END OF CORRECTED LINE ##########
+        } 
+        else if (/^(\\d{1,3}\\.){3}\\d{1,3}-\\d{1,3}$/.test(rangeInput)) {
             const parts = rangeInput.split('-');
             const baseIpWithLastOctet = parts[0];
             const endOctet = parseInt(parts[1]);
@@ -773,9 +675,6 @@ async function HTML(hostname, 网站图标, token) {
             } else {
                  showToast('Invalid x.x.x.A-B range format.');
             }
-        }
-        if (ips.length === 0 && rangeInput && !cidrMatch) { 
-            showToast('Could not parse IP range or invalid format provided.');
         }
         return ips;
     }
@@ -866,25 +765,15 @@ async function HTML(hostname, 网站图标, token) {
 
         if (rangeIpToTest) {
             const ipsInRange = parseIPRange(rangeIpToTest);
-            // PRACTICAL_TEST_LIMIT is important even if parseIPRange limits CIDR,
-            // because simple range like 1.2.3.1-2000 could still be large.
-            // Max for /23 is 512. So 1024 is a reasonable practical limit.
-            const PRACTICAL_TEST_LIMIT = 1024; 
-
-            if (ipsInRange.length === 0 && rangeIpToTest) {
-                // parseIPRange would have shown a toast for invalid format.
-            } else if (ipsInRange.length > PRACTICAL_TEST_LIMIT) {
-                 showToast(\`Range too large with \${ipsInRange.length} IPs (limit: \${PRACTICAL_TEST_LIMIT}). Supported CIDR: /23, /24. Supported simple range up to \${PRACTICAL_TEST_LIMIT} IPs.\`);
-                 rangeResultCard.style.display = 'none';
-            } else if (ipsInRange.length > 0) {
+            if (ipsInRange.length > 0) {
                 showToast(\`Starting test for \${ipsInRange.length} IPs in range... This may take a while.\`);
                 rangeResultCard.style.display = 'block';
                 
                 let successCount = 0;
                 let checkedCount = 0;
-                currentSuccessfulRangeIPs = [];
+                currentSuccessfulRangeIPs = []; // Reset for current test
 
-                const batchSize = 20; 
+                const batchSize = 10; 
                 for (let i = 0; i < ipsInRange.length; i += batchSize) {
                     const batch = ipsInRange.slice(i, i + batchSize);
                     const batchPromises = batch.map(ip => 
@@ -893,7 +782,7 @@ async function HTML(hostname, 网站图标, token) {
                                 checkedCount++;
                                 if (data.success) {
                                     successCount++;
-                                    currentSuccessfulRangeIPs.push(data.proxyIP);
+                                    currentSuccessfulRangeIPs.push(data.proxyIP); // Store only the IP string
                                 }
                                 return data; 
                             })
@@ -913,13 +802,15 @@ async function HTML(hostname, 网站图标, token) {
                          copyRangeBtn.style.display = 'none';
                     }
                     if (i + batchSize < ipsInRange.length) {
-                        await new Promise(resolve => setTimeout(resolve, 250));
+                        await new Promise(resolve => setTimeout(resolve, 200));
                     }
                 }
                 rangeResultSummary.innerHTML = \`Range test complete. \${successCount} of \${ipsInRange.length} IPs were successful.\`;
-                if (currentSuccessfulRangeIPs.length === 0 && ipsInRange.length > 0) {
+                if (currentSuccessfulRangeIPs.length === 0) {
                     showToast('No successful IPs found in the range.');
                 }
+            } else if (rangeIpToTest) { 
+                 showToast('Invalid IP Range format or empty range.');
             }
         }
 
@@ -947,7 +838,7 @@ async function HTML(hostname, 网站图标, token) {
         const dataPoints = successfulIPs.map(() => 1); 
 
         rangeChartInstance = new Chart(ctx, {
-            type: 'bar',
+            type: 'bar', // For horizontal bar, it's 'bar' with indexAxis: 'y'
             data: {
                 labels: labels,
                 datasets: [{
@@ -955,17 +846,15 @@ async function HTML(hostname, 网站图标, token) {
                     data: dataPoints,
                     backgroundColor: 'rgba(46, 204, 113, 0.6)', 
                     borderColor: 'rgba(46, 204, 113, 1)',
-                    borderWidth: 1,
-                    barPercentage: 0.8, 
-                    categoryPercentage: 0.7 
+                    borderWidth: 1
                 }]
             },
             options: {
-                indexAxis: 'y', 
+                indexAxis: 'y', // This makes the bar chart horizontal
                 responsive: true,
-                maintainAspectRatio: false, 
+                maintainAspectRatio: false,
                 scales: {
-                    x: { 
+                    x: { // X-axis now represents the "count" or "success value"
                         beginAtZero: true,
                         ticks: {
                             stepSize: 1,
@@ -973,56 +862,51 @@ async function HTML(hostname, 网站图标, token) {
                         },
                         title: { display: false }
                     },
-                    y: { 
+                    y: { // Y-axis now lists the IPs
                          ticks: {
                              autoSkip: false, 
-                             font: { size: 10 } 
                          },
                          title: {
-                             display: false,
+                             display: true,
+                             text: 'IP Addresses'
                          }
                     }
                 },
                 plugins: {
                     legend: {
-                        display: false, 
+                        display: false, // Legend might be redundant if only one dataset
                     },
                     tooltip: {
                         callbacks: {
-                            label: function(context) { 
+                            label: function(context) { // For horizontal bar, context.label is the IP
                                 return \`IP: \${context.label} - Status: Successful\`;
                             },
                              title: function() {
-                                return ''; 
+                                return ''; // No title for tooltip
                             }
                         }
                     }
                 }
             }
         });
+        // Adjust canvas height based on number of IPs to prevent clutter
         const canvas = document.getElementById('rangeSuccessChart');
-        const chartContainer = document.getElementById('rangeResultChartContainer');
-        const barHeight = 30; 
-        const calculatedHeight = Math.max(150, labels.length * barHeight);
-        const maxHeight = 600; 
-        const newHeight = Math.min(calculatedHeight, maxHeight); 
-        
+        const barHeight = 25; // Approximate height per bar + spacing
+        const newHeight = Math.max(200, labels.length * barHeight); // Min height 200px
         canvas.style.height = \`\${newHeight}px\`;
-        chartContainer.style.height = \`\${newHeight + 20}px\`; 
+        if(rangeChartInstance) rangeChartInstance.resize();
 
-        if(rangeChartInstance) {
-             setTimeout(() => { if (rangeChartInstance) rangeChartInstance.resize(); }, 0);
-        }
     }
     
     function copySuccessfulRangeIPs() {
         if (currentSuccessfulRangeIPs.length > 0) {
             const textToCopy = currentSuccessfulRangeIPs.join('\\n');
-            copyToClipboard(textToCopy, document.getElementById('copyRangeBtn'), "All successful IPs copied!");
+            copyToClipboard(textToCopy, null, "All successful IPs copied!");
         } else {
             showToast("No successful IPs to copy.");
         }
     }
+
 
     async function fetchSingleIPCheck(proxyipWithOptionalPort) { //
         const requestUrl = \`./check?proxyip=\${encodeURIComponent(proxyipWithOptionalPort)}&token=\${TEMP_TOKEN}\`; //
@@ -1093,7 +977,7 @@ async function HTML(hostname, 网站图标, token) {
           <p><strong>📋 IPs Found:</strong> \${ips.length}</p>
           <div class="ip-grid" id="ip-grid" style="max-height: 200px; overflow-y: auto; margin-top:10px; border:1px solid #eee; padding:5px;">
             \${ips.map((ip, index) => \`
-              <div class="ip-item" id="ip-item-\${index}" style="padding:5px; border-bottom:1px solid #f0f0f0; display:flex; justify-content:space-between; align-items:center;">
+              <div class="ip-item" id="ip-item-\${index}">
                 <div>\${createCopyButton(ip)} <span id="ip-info-\${index}" style="font-size:0.8em; color:#555;"></span></div>
                 <span class="status-icon" id="status-icon-\${index}" style="font-size:1.2em;">🔄</span>
               </div>
@@ -1162,4 +1046,4 @@ async function HTML(hostname, 网站图标, token) {
   return new Response(html, {
     headers: { "content-type": "text/html;charset=UTF-8" } //
   });
-}
+    }
