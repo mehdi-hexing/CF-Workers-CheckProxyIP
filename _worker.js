@@ -752,7 +752,9 @@ async function HTML(hostname, 网站图标, token) {
                 return [];
             }
         }
-        else if (/^(\\d{1,3}\\.){3}\\d{1,3}-\\d{1,3}$/.test(rangeInput)) {
+        // ########## START OF CORRECTED LINE ##########
+        else if (/^(\d{1,3}\.){3}\d{1,3}-\d{1,3}$/.test(rangeInput)) { 
+        // ########## END OF CORRECTED LINE ##########
             const parts = rangeInput.split('-');
             const baseIpWithLastOctet = parts[0];
             const endOctet = parseInt(parts[1]);
@@ -1161,4 +1163,3 @@ async function HTML(hostname, 网站图标, token) {
     headers: { "content-type": "text/html;charset=UTF-8" } //
   });
 }
-
