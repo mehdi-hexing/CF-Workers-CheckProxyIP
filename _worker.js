@@ -389,11 +389,11 @@ async function HTML(hostname, 网站图标, token) {
       display: flex; 
       flex-direction: column; 
       align-items: center; 
-      overflow-x: hidden; 
+      overflow-x: hidden; /* Prevent horizontal scroll from GitHub corner or other elements */
     }
     .container { 
       max-width: 800px; 
-      width: 90%; 
+      width: 90%; /* Responsive width */
       margin: 20px auto; 
       padding: 0; 
     }
@@ -416,11 +416,11 @@ async function HTML(hostname, 网站图标, token) {
     .form-section { 
       display: flex; 
       flex-direction: column; 
-      align-items: center; 
+      align-items: center; /* Center form elements */
     }
     .input-wrapper { 
       width: 100%; 
-      max-width: 450px; 
+      max-width: 450px; /* Max width for inputs on desktop */
       margin-bottom: 18px; 
     }
     .form-label { 
@@ -458,7 +458,7 @@ async function HTML(hostname, 网站图标, token) {
       background: linear-gradient(135deg, var(--primary-color), var(--primary-dark)); 
       color: white; 
       width: 100%; 
-      max-width: 450px; 
+      max-width: 450px; /* Consistent max-width */
     }
     .btn-primary:disabled { background: #bdc3c7; cursor: not-allowed; transform: none; }
     .btn-secondary { 
@@ -511,25 +511,38 @@ async function HTML(hostname, 网站图标, token) {
       background-color: var(--bg-secondary); 
       border-radius: var(--border-radius-sm); 
       width:100%; 
+      position: relative; /* For Chart.js responsiveness */
     }
     .api-docs { margin-top: 30px; padding: 25px; background: var(--bg-primary); border-radius: var(--border-radius); }
+    .api-docs p { 
+      word-wrap: break-word; /* For older browsers */
+      overflow-wrap: break-word; /* Standard property */
+      margin-bottom: 0.5em;
+    }
+    .api-docs code {
+      background-color: #f0f0f0;
+      padding: 0.2em 0.4em;
+      border-radius: 3px;
+      font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+    }
     .footer { text-align: center; padding: 20px; margin-top: auto; color: rgba(255,255,255,0.8); font-size: 0.85em; width:100%; border-top: 1px solid rgba(255,255,255,0.1); }
     .flex-align-center { display: flex; align-items: center; justify-content: center; }
     
+    /* GitHub Corner: fill with page background, color with primary theme color */
     .github-corner { position: fixed; top: 0; right: 0; border: 0; z-index: 1001; }
     .github-corner svg { fill: var(--bg-primary); color: var(--primary-color); width: 80px; height: 80px;}
     .github-corner .octo-arm{transform-origin:130px 106px}
     .github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}
     @keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}
 
-    @media (max-width: 768px) {
+    @media (max-width: 768px) { /* Tablets and larger phones */
       .container { width: 95%; padding-left: 10px; padding-right: 10px; }
       .main-title { font-size: 2.1rem; }
-      .input-wrapper, .btn-primary { max-width: 100%; }
+      .input-wrapper, .btn-primary { max-width: 100%; } /* Allow full width within centered form */
       .github-corner svg { width: 60px; height: 60px; }
     }
 
-    @media (max-width: 480px) {
+    @media (max-width: 480px) { /* Smaller mobile phones */
       .main-title { font-size: 1.8rem; }
       .card { padding: 20px; }
       .form-input, .btn { font-size: 0.9rem; padding: 10px; }
@@ -555,9 +568,9 @@ async function HTML(hostname, 网站图标, token) {
           <input type="text" id="proxyip" class="form-input" placeholder="e.g., 1.2.3.4:443 or example.com" autocomplete="off">
         </div>
         
-        <label for="proxyipRange" class="form-label">Enter IP Range (e.g., 1.2.3.0/24 or 1.2.3.1-255):</label>
+        <label for="proxyipRange" class="form-label">Enter IP Range (e.g., CIDR /8-/32 or Simple 1.2.3.1-255):</label>
         <div class="input-wrapper">
-          <input type="text" id="proxyipRange" class="form-input" placeholder="CIDR (e.g. 1.2.3.0/24) or Simple Range (e.g. 1.2.3.1-255)" autocomplete="off">
+          <input type="text" id="proxyipRange" class="form-input" placeholder="e.g., 10.0.0.0/22 or 192.168.1.1-255" autocomplete="off">
         </div>
 
         <button id="checkBtn" class="btn btn-primary" onclick="checkInputs()">
@@ -571,7 +584,7 @@ async function HTML(hostname, 网站图标, token) {
       <div id="result" class="result-section"></div>
       <div id="rangeResultCard" class="result-card result-section" style="display:none; text-align: center;">
          <h4>Successful IPs in Range:</h4>
-         <div id="rangeResultChartContainer" style="position: relative; width:100%; margin: 15px auto;">
+         <div id="rangeResultChartContainer">
             <canvas id="rangeSuccessChart"></canvas>
          </div>
          <div id="rangeResultSummary" style="margin-bottom: 10px;"></div>
@@ -580,14 +593,14 @@ async function HTML(hostname, 网站图标, token) {
     </div>
     
     <div class="api-docs">
-       <h3 style="margin-bottom:10px;">API Documentation</h3>
+       <h3 style="margin-bottom:15px; text-align:center;">API Documentation</h3>
        <p><code>GET /check?proxyip=YOUR_PROXY_IP&token=YOUR_TOKEN_IF_SET</code></p>
        <p><code>GET /resolve?domain=YOUR_DOMAIN&token=YOUR_TOKEN_IF_SET</code></p>
        <p><code>GET /ip-info?ip=TARGET_IP&token=YOUR_TOKEN_IF_SET</code></p>
     </div>
 
     <footer class="footer">
-      <p>© ${new Date().getFullYear()} Proxy IP Checker - By <strong>mehdi-hexing</strong> | Modified by mehdi-hexing</p>
+      <p>© ${new Date().getFullYear()} Proxy IP Checker - By <strong>mehdi-hexing</strong> | Modified by Mehdi-hexing</p>
     </footer>
   </div>
 
@@ -659,9 +672,9 @@ async function HTML(hostname, 网站图标, token) {
     function copyToClipboard(text, element, successMessage = "Copied!") { //
       navigator.clipboard.writeText(text).then(() => { //
         const originalText = element ? element.textContent : ''; //
-        if(element && element.classList.contains('btn')) { // Check if it's a button to change its text
+        if(element && element.classList.contains('btn')) { 
              element.textContent = 'Copied ✓';
-        } else if (element) { // For other elements like copy-btn spans
+        } else if (element && element.classList.contains('copy-btn')) { 
              element.textContent = '✓';
         }
         showToast(successMessage); //
@@ -693,7 +706,7 @@ async function HTML(hostname, 网站图标, token) {
             ipl <<= 8;
             ipl += parseInt(octet);
         });
-        return(ipl >>> 0); // Ensure positive integer
+        return(ipl >>> 0);
     }
 
     function longToIp(ipl) {
@@ -706,40 +719,48 @@ async function HTML(hostname, 网站图标, token) {
     function parseIPRange(rangeInput) {
         const ips = [];
         rangeInput = rangeInput.trim();
-        const MAX_IPS_TO_GENERATE_CLIENT_SIDE = 65536; // Max for /16 - adjust if needed, but higher is risky
+        // Increased for broader CIDR support, but client-side processing of very large ranges is still dangerous.
+        // A practical limit (e.g. /20 or /22) should be enforced before calling fetch for each IP.
+        const MAX_IPS_TO_GENERATE_CLIENT_SIDE = 262144; // Roughly /14, still very large for client.
+                                                        // User was warned about /8 etc. This is a parsing limit, not a "safe to test" limit.
 
-        // CIDR notation: x.x.x.x/mask
         const cidrMatch = rangeInput.match(/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\/(\d{1,2})$/);
         if (cidrMatch) {
             const baseIpStr = cidrMatch[1];
             const prefixSize = parseInt(cidrMatch[2]);
 
-            if (prefixSize < 8 || prefixSize > 32) { // Support /8 to /32
+            if (prefixSize < 8 || prefixSize > 32) { 
                 showToast('CIDR prefix size must be between 8 and 32.');
                 return [];
             }
 
-            const baseIpLong = ipToLong(baseIpStr);
-            const networkMask = (0xFFFFFFFF << (32 - prefixSize)) >>> 0;
-            const networkAddress = (baseIpLong & networkMask) >>> 0;
-            const broadcastAddress = (networkAddress | (~networkMask >>> 0)) >>> 0;
-            
-            const numAddresses = Math.pow(2, 32 - prefixSize);
+            try {
+                const baseIpLong = ipToLong(baseIpStr);
+                // Calculate network and broadcast addresses correctly for the given base IP and prefix
+                const mask = (0xFFFFFFFF << (32 - prefixSize)) >>> 0;
+                const networkAddress = (baseIpLong & mask) >>> 0; // Ensure the base IP is actually the network address for iteration start
+                
+                const numAddresses = Math.pow(2, 32 - prefixSize);
 
-            if (numAddresses > MAX_IPS_TO_GENERATE_CLIENT_SIDE) {
-                showToast(\`Range too large (\${numAddresses} IPs > \${MAX_IPS_TO_GENERATE_CLIENT_SIDE}). Please use a smaller range (e.g., /16 or higher prefix).\`);
+                if (numAddresses > MAX_IPS_TO_GENERATE_CLIENT_SIDE) {
+                    showToast(\`Range too large to parse/generate on client (\${numAddresses} IPs > \${MAX_IPS_TO_GENERATE_CLIENT_SIDE}). Please use a smaller range.\`);
+                    return [];
+                }
+                
+                // Generate all IPs in the CIDR block
+                for (let i = 0; i < numAddresses; i++) {
+                     if (ips.length >= MAX_IPS_TO_GENERATE_CLIENT_SIDE) break; 
+                     const currentIpLong = (networkAddress + i) >>> 0;
+                     ips.push(longToIp(currentIpLong));
+                }
+            } catch (e) {
+                showToast('Error parsing CIDR IP address.');
+                console.error("CIDR parsing error:", e);
                 return [];
             }
-            
-            // Iterate from network address + 1 up to broadcast address - 1 (for usable hosts)
-            // Or, if you want all IPs including network and broadcast for testing:
-            for (let i = 0; i < numAddresses; i++) {
-                 if (ips.length >= MAX_IPS_TO_GENERATE_CLIENT_SIDE) break; // Safety break
-                 ips.push(longToIp(networkAddress + i));
-            }
         }
-        // Simple range: x.x.x.A-B (e.g., 1.2.3.1-255)
         else if (/^(\\d{1,3}\\.){3}\\d{1,3}-\\d{1,3}$/.test(rangeInput)) {
+            // ... (simple range parsing remains the same)
             const parts = rangeInput.split('-');
             const baseIpWithLastOctet = parts[0];
             const endOctet = parseInt(parts[1]);
@@ -852,9 +873,15 @@ async function HTML(hostname, 网站图标, token) {
 
         if (rangeIpToTest) {
             const ipsInRange = parseIPRange(rangeIpToTest);
-            const maxProcessCount = 8192; // Limit for client-side processing (approx /19 or /20)
-            if (ipsInRange.length > maxProcessCount) {
-                 showToast(\`Range too large (\${ipsInRange.length} IPs). Please use a smaller range (max \${maxProcessCount} IPs for client-side testing).\`);
+            // Practical limit for client-side batch testing (e.g., /20 has ~4k, /22 has ~1k)
+            // Testing more than a few thousand IPs client-side is extremely slow and resource-intensive.
+            const PRACTICAL_TEST_LIMIT = 4096; // Example: Max for /20
+
+            if (ipsInRange.length === 0 && rangeIpToTest) {
+                // parseIPRange would have shown a toast for invalid format or too large to parse
+                // No further action needed here if ipsInRange is empty due to parsing issues.
+            } else if (ipsInRange.length > PRACTICAL_TEST_LIMIT) {
+                 showToast(\`Cannot test: Range too large (\${ipsInRange.length} IPs). Please use a range with up to \${PRACTICAL_TEST_LIMIT} IPs for client-side testing.\`);
                  rangeResultCard.style.display = 'none';
             } else if (ipsInRange.length > 0) {
                 showToast(\`Starting test for \${ipsInRange.length} IPs in range... This may take a while.\`);
@@ -864,11 +891,11 @@ async function HTML(hostname, 网站图标, token) {
                 let checkedCount = 0;
                 currentSuccessfulRangeIPs = [];
 
-                const batchSize = 10; 
+                const batchSize = 20; // Increased batch size slightly
                 for (let i = 0; i < ipsInRange.length; i += batchSize) {
                     const batch = ipsInRange.slice(i, i + batchSize);
                     const batchPromises = batch.map(ip => 
-                        fetchSingleIPCheck(ip + ':443') 
+                        fetchSingleIPCheck(ip + ':443') // Assuming port 443 for range test
                             .then(data => {
                                 checkedCount++;
                                 if (data.success) {
@@ -893,17 +920,14 @@ async function HTML(hostname, 网站图标, token) {
                          copyRangeBtn.style.display = 'none';
                     }
                     if (i + batchSize < ipsInRange.length) {
-                        await new Promise(resolve => setTimeout(resolve, 200));
+                        // Only add delay if not the last batch to avoid unnecessary wait
+                        await new Promise(resolve => setTimeout(resolve, 250)); // Slightly longer delay
                     }
                 }
                 rangeResultSummary.innerHTML = \`Range test complete. \${successCount} of \${ipsInRange.length} IPs were successful.\`;
                 if (currentSuccessfulRangeIPs.length === 0 && ipsInRange.length > 0) {
                     showToast('No successful IPs found in the range.');
                 }
-            } else if (rangeIpToTest && ipsInRange.length === 0) { 
-                 // This condition means parseIPRange was called with non-empty input but returned no IPs (e.g. invalid format that wasn't caught by specific error messages inside parseIPRange)
-                 // Or if the parseIPRange already showed a toast for invalid format.
-                 // showToast('Invalid IP Range format or empty range after parsing.'); // Already handled by parseIPRange
             }
         }
 
@@ -947,7 +971,7 @@ async function HTML(hostname, 网站图标, token) {
             options: {
                 indexAxis: 'y', 
                 responsive: true,
-                maintainAspectRatio: false,
+                maintainAspectRatio: false, // Important for custom height
                 scales: {
                     x: { 
                         beginAtZero: true,
@@ -985,11 +1009,17 @@ async function HTML(hostname, 网站图标, token) {
             }
         });
         const canvas = document.getElementById('rangeSuccessChart');
+        const chartContainer = document.getElementById('rangeResultChartContainer');
         const barHeight = 30; 
-        const newHeight = Math.max(150, labels.length * barHeight); 
+        // Calculate height based on number of bars, but limit to a max reasonable height
+        const calculatedHeight = Math.max(150, labels.length * barHeight);
+        const maxHeight = 600; // Max height for the chart area
+        const newHeight = Math.min(calculatedHeight, maxHeight); 
+        
         canvas.style.height = \`\${newHeight}px\`;
-        // Ensure the container of the canvas also allows for this height.
-        // The chart container's max-height is handled by CSS media queries.
+        // The container's height might also need to be managed if it restricts the canvas
+        chartContainer.style.height = \`\${newHeight + 20}px\`; // +20 for padding in container
+
         if(rangeChartInstance) {
              setTimeout(() => { if (rangeChartInstance) rangeChartInstance.resize(); }, 0);
         }
@@ -1142,4 +1172,4 @@ async function HTML(hostname, 网站图标, token) {
   return new Response(html, {
     headers: { "content-type": "text/html;charset=UTF-8" } //
   });
-                            }
+            }
