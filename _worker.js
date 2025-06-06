@@ -15,28 +15,6 @@ async function doubleHash(text) {
   return secondHex.toLowerCase();
 }
 
-async function resolveDomain(domain) {
-  domain = domain.includes(':') ? domain.split(':')[0] : domain;
-  try {
-    const [ipv4Response, ipv6Response] = await Promise.all([
-      fetch(`https://1.1.1.1/dns-query?name=${domain}&type=A`, { headers: { 'Accept': 'application/dns-json' } }),
-      fetch(`https://1.1.1.1/dns-query?name=${domain}&type=AAAA`, { headers: { 'Accept': 'application/dns-json' } })
-    ]);
-    const [ipv4Data, ipv6Data] = await Promise.all([ipv4Response.json(), ipv6Response.json()]);
-    const ips = [];
-    if (ipv4Data.Answer) {
-      ips.push(...ipv4Data.Answer.filter(r => r.type === 1).map(r => r.data));
-    }
-    if (ipv6Data.Answer) {
-      ips.push(...ipv6Data.Answer.filter(r => r.type === 28).map(r => `[${r.data}]`));
-    }
-    if (ips.length === 0) throw new Error('No A or AAAA records found');
-    return ips;
-  } catch (error) {
-    throw new Error(`DNS resolution failed: ${error.message}`);
-  }
-}
-
 async function checkProxyIP(proxyIPWithPort) {
   let portRemote = 443;
   let hostToCheck = proxyIPWithPort;
@@ -98,6 +76,8 @@ async function checkProxyIP(proxyIPWithPort) {
   }
 }
 
+// --- Main Fetch Handler ---
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -110,48 +90,37 @@ export default {
     permanentTOKEN = env.TOKEN || temporaryTOKEN;
     
     if (path.toLowerCase().startsWith('/api/')) {
-      const isTokenValid = () => {
-        if (!env.TOKEN) return true;
-        const providedToken = url.searchParams.get('token');
-        return providedToken === permanentTOKEN || providedToken === temporaryTOKEN;
-      };
+        const isTokenValid = () => {
+            if (!env.TOKEN) return true;
+            const providedToken = url.searchParams.get('token');
+            return providedToken === permanentTOKEN || providedToken === temporaryTOKEN;
+        };
 
-      if (!isTokenValid()) {
-        return new Response(JSON.stringify({ status: "error", message: "Invalid TOKEN" }), {
-          status: 403, headers: { "Content-Type": "application/json" }
-        });
-      }
-
-      if (path.toLowerCase() === '/api/check') {
-        if (!url.searchParams.has('proxyip')) return new Response('Missing proxyip parameter', { status: 400 });
-        const proxyIPInput = url.searchParams.get('proxyip');
-        const result = await checkProxyIP(proxyIPInput);
-        return new Response(JSON.stringify(result), {
-          status: result.success ? 200 : 502, headers: { "Content-Type": "application/json" }
-        });
-      }
-
-      if (path.toLowerCase() === '/api/resolve') {
-        if (!url.searchParams.has('domain')) return new Response('Missing domain parameter', { status: 400 });
-        const domain = url.searchParams.get('domain');
-        try {
-            const ips = await resolveDomain(domain);
-            return new Response(JSON.stringify({ success: true, domain, ips }), { headers: { "Content-Type": "application/json" } });
-        } catch (error) {
-            return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: { "Content-Type": "application/json" } });
+        if (!isTokenValid()) {
+            return new Response(JSON.stringify({ status: "error", message: "Invalid TOKEN" }), {
+                status: 403, headers: { "Content-Type": "application/json" }
+            });
         }
-      }
 
-      if (path.toLowerCase() === '/api/ip-info') {
-        let ip = url.searchParams.get('ip') || request.headers.get('CF-Connecting-IP');
-        if (!ip) return new Response('IP parameter not provided', { status: 400 });
-        if (ip.includes('[')) ip = ip.replace(/\[|\]/g, '');
-        const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,message,query,country,countryCode,as&lang=en`);
-        const data = await response.json();
-        return new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } });
-      }
-      
-      return new Response('API route not found', { status: 404 });
+        if (path.toLowerCase() === '/api/check') {
+            if (!url.searchParams.has('proxyip')) return new Response('Missing proxyip parameter', { status: 400 });
+            const proxyIPInput = url.searchParams.get('proxyip');
+            const result = await checkProxyIP(proxyIPInput);
+            return new Response(JSON.stringify(result), {
+                status: result.success ? 200 : 502, headers: { "Content-Type": "application/json" }
+            });
+        }
+
+        if (path.toLowerCase() === '/api/ip-info') {
+            let ip = url.searchParams.get('ip') || request.headers.get('CF-Connecting-IP');
+            if (!ip) return new Response('IP parameter not provided', { status: 400 });
+            if (ip.includes('[')) ip = ip.replace(/\[|\]/g, '');
+            const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,message,query,country,countryCode,as&lang=en`);
+            const data = await response.json();
+            return new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } });
+        }
+        
+        return new Response('API route not found', { status: 404 });
     }
     
     const faviconURL = env.ICO || 'https://cf-assets.www.cloudflare.com/dzlvafdwdttg/19kSkLSfWtDcspvQI5pit4/c5630cf25d589a0de91978ca29486259/performance-acceleration-bolt.svg';
@@ -166,6 +135,8 @@ export default {
   }
 };
 
+// --- HTML Generation ---
+
 function generateMainHTML(token, faviconURL) {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -177,7 +148,6 @@ function generateMainHTML(token, faviconURL) {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root {
       --primary-color: #3498db; --primary-dark: #2980b9; --success-color: #2ecc71;
@@ -250,10 +220,7 @@ function generateMainHTML(token, faviconURL) {
          <h4>Successful IPs in Range:</h4>
          <div id="rangeResultSummary" style="margin-bottom: 15px;"></div>
          <div id="successfulRangeIPsList" style="margin-bottom: 15px; max-height: 200px; overflow-y: auto;"></div>
-         <div id="rangeResultChartContainer" style="width:100%; max-height:400px; margin: 15px auto; overflow-x: auto; display:none;">
-            <canvas id="rangeSuccessChart"></canvas>
-         </div>
-         <button class="btn-secondary" id="copyRangeBtn" style="display:none; margin-top: 15px;">Copy Successful IPs</button>
+         <button class="btn-secondary" id="copyRangeBtn" style="display:none;">Copy Successful IPs</button>
       </div>
     </div>
     
@@ -275,7 +242,6 @@ function generateMainHTML(token, faviconURL) {
     let isChecking = false;
     const TEMP_TOKEN = "${token}";
     let currentSuccessfulRangeIPs = [];
-    let rangeChartInstance = null;
 
     document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('checkBtn').addEventListener('click', checkInputs);
@@ -350,15 +316,10 @@ function generateMainHTML(token, faviconURL) {
         const rangeResultSummary = document.getElementById('rangeResultSummary');
         const successfulIPsListDiv = document.getElementById('successfulRangeIPsList');
         const copyRangeBtn = document.getElementById('copyRangeBtn');
-        const chartContainer = document.getElementById('rangeResultChartContainer');
 
         rangeResultCard.style.display = 'none';
         currentSuccessfulRangeIPs = [];
         let totalChecked = 0, totalSuccess = 0;
-        if (rangeChartInstance) {
-            rangeChartInstance.destroy();
-            rangeChartInstance = null;
-        }
 
         try {
             if (singleIpToTest) {
@@ -396,14 +357,10 @@ function generateMainHTML(token, faviconURL) {
                         await Promise.all(promises);
                         rangeResultSummary.innerHTML = 'Total Tested: ' + totalChecked + ' | Total Successful: ' + totalSuccess;
                         updateSuccessfulRangeIPsDisplay();
-                        updateRangeSuccessChart();
                     }
                 }
                 if(currentSuccessfulRangeIPs.length > 0) {
                     copyRangeBtn.style.display = 'inline-block';
-                    chartContainer.style.display = 'block';
-                } else {
-                    chartContainer.style.display = 'none';
                 }
             }
         } catch (error) {
@@ -428,40 +385,9 @@ function generateMainHTML(token, faviconURL) {
         listDiv.innerHTML = html;
     }
 
-    function updateRangeSuccessChart() {
-        const successfulIPs = currentSuccessfulRangeIPs.map(item => item.ip);
-        const ctx = document.getElementById('rangeSuccessChart').getContext('2d');
-        if (rangeChartInstance) {
-            rangeChartInstance.destroy();
-        }
-        
-        rangeChartInstance = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: successfulIPs,
-                datasets: [{
-                    label: 'Successful IP',
-                    data: successfulIPs.map(() => 1),
-                    backgroundColor: 'rgba(46, 204, 113, 0.6)', 
-                    borderColor: 'rgba(46, 204, 113, 1)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                indexAxis: 'y',
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: { x: { display: false }, y: { ticks: { autoSkip: false } } },
-                plugins: { legend: { display: false } }
-            }
-        });
-        const canvas = document.getElementById('rangeSuccessChart');
-        canvas.style.height = (Math.max(5, successfulIPs.length) * 25) + 'px';
-        if(rangeChartInstance) rangeChartInstance.resize();
-    }
-
     async function checkAndDisplaySingleIP(proxyip) {
         const resultDiv = document.getElementById('result');
+        resultDiv.innerHTML = '<p style="text-align:center; color: var(--text-light);">Checking...</p>';
         try {
             const data = await fetchAPI('/api/check', new URLSearchParams({ proxyip: proxyip }));
             let ipInfoHTML = '';
@@ -508,7 +434,7 @@ function generateMainHTML(token, faviconURL) {
             const prefix = match[1];
             const startOctet = parseInt(match[2]);
             const endOctet = parseInt(match[3]);
-            if (!isNaN(startOctet) && !isNaN(endOctet) && startOctet <= endOctet) {
+            if (!isNaN(startOctet) && !isNaN(endOctet) && startOctet <= endOctet && startOctet >=0 && endOctet <= 255) {
                 for (let i = startOctet; i <= endOctet; i++) {
                     ips.push(prefix + i);
                 }
@@ -519,4 +445,4 @@ function generateMainHTML(token, faviconURL) {
   </script>
 </body>
 </html>`;
-                                  }
+  }
