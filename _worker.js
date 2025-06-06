@@ -15,6 +15,28 @@ async function doubleHash(text) {
   return secondHex.toLowerCase();
 }
 
+async function resolveDomain(domain) {
+  domain = domain.includes(':') ? domain.split(':')[0] : domain;
+  try {
+    const [ipv4Response, ipv6Response] = await Promise.all([
+      fetch(`https://1.1.1.1/dns-query?name=${domain}&type=A`, { headers: { 'Accept': 'application/dns-json' } }),
+      fetch(`https://1.1.1.1/dns-query?name=${domain}&type=AAAA`, { headers: { 'Accept': 'application/dns-json' } })
+    ]);
+    const [ipv4Data, ipv6Data] = await Promise.all([ipv4Response.json(), ipv6Response.json()]);
+    const ips = [];
+    if (ipv4Data.Answer) {
+      ips.push(...ipv4Data.Answer.filter(r => r.type === 1).map(r => r.data));
+    }
+    if (ipv6Data.Answer) {
+      ips.push(...ipv6Data.Answer.filter(r => r.type === 28).map(r => `[${r.data}]`));
+    }
+    if (ips.length === 0) throw new Error('No A or AAAA records found');
+    return ips;
+  } catch (error) {
+    throw new Error(`DNS resolution failed: ${error.message}`);
+  }
+}
+
 async function checkProxyIP(proxyIPWithPort) {
   let portRemote = 443;
   let hostToCheck = proxyIPWithPort;
@@ -115,6 +137,17 @@ export default {
             });
         }
 
+        if (path.toLowerCase() === '/api/resolve') {
+            if (!url.searchParams.has('domain')) return new Response('Missing domain parameter', { status: 400 });
+            const domain = url.searchParams.get('domain');
+            try {
+                const ips = await resolveDomain(domain);
+                return new Response(JSON.stringify({ success: true, domain, ips }), { headers: { "Content-Type": "application/json" } });
+            } catch (error) {
+                return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: { "Content-Type": "application/json" } });
+            }
+        }
+        
         if (path.toLowerCase() === '/api/ip-info') {
             let ip = url.searchParams.get('ip') || request.headers.get('CF-Connecting-IP');
             if (!ip) return new Response('IP parameter not provided', { status: 400 });
@@ -247,9 +280,13 @@ function generateMainHTML(faviconURL) {
       width: 24px;
       height: 24px;
       stroke: var(--text-primary);
-      fill: var(--text-primary);
+      fill: none;
       transition: all 0.3s ease;
     }
+    #theme-toggle .moon-icon { display: none; }
+    #theme-toggle .sun-icon { display: block; }
+    body.dark-mode #theme-toggle .moon-icon { display: block; }
+    body.dark-mode #theme-toggle .sun-icon { display: none; }
   </style>
 </head>
 <body>
@@ -286,6 +323,7 @@ function generateMainHTML(faviconURL) {
     <div class="api-docs">
        <h3 style="margin-bottom:15px; text-align:center;">API Documentation</h3>
        <p><code>GET /api/check?proxyip=YOUR_IP&token=YOUR_TOKEN</code></p>
+       <p><code>GET /api/resolve?domain=YOUR_DOMAIN&token=YOUR_TOKEN</code></p>
        <p><code>GET /api/ip-info?ip=TARGET_IP&token=YOUR_TOKEN</code></p>
     </div>
     <footer class="footer">
@@ -294,8 +332,19 @@ function generateMainHTML(faviconURL) {
   </div>
   <div id="toast" class="toast"></div>
   <button id="theme-toggle" aria-label="Toggle Theme">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 7.05l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
+    <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+    <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
     </svg>
   </button>
   <script>
@@ -537,4 +586,4 @@ function generateMainHTML(faviconURL) {
   </script>
 </body>
 </html>`;
-}
+              }
