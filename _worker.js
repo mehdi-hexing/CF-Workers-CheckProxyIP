@@ -261,6 +261,10 @@ function generateMainHTML(faviconURL) {
     #successfulRangeIPsList, .domain-ip-list { border: 1px solid var(--border-color); padding: 10px; border-radius: var(--border-radius-sm); max-height: 250px; overflow-y: auto;}
     .ip-item { padding:8px 5px; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; }
     #successfulRangeIPsList .ip-item:last-child, .domain-ip-list .ip-item:last-child { border-bottom: none; }
+    .api-docs { margin-top: 30px; padding: 25px; background: var(--bg-primary); border-radius: var(--border-radius); transition: background 0.3s ease; }
+    .api-docs p { background-color: var(--bg-secondary); border: 1px solid var(--border-color); padding: 10px; border-radius: 4px; margin-bottom: 10px; word-break: break-all; transition: background 0.3s ease, border-color 0.3s ease;}
+    .api-docs p code { background: none; padding: 0;}
+    .footer { text-align: center; padding: 20px; margin-top: 30px; color: rgba(255,255,255,0.8); font-size: 0.85em; border-top: 1px solid rgba(255,255,255,0.1); }
     .github-corner svg { fill: var(--primary-color); color: #fff; position: fixed; top: 0; border: 0; right: 0; z-index: 1000;}
     body.dark-mode .github-corner svg { fill: #fff; color: #151513; }
     .octo-arm{transform-origin:130px 106px}
@@ -327,13 +331,19 @@ function generateMainHTML(faviconURL) {
          <button class="btn-secondary" id="copyRangeBtn" style="display:none;">Copy Successful IPs</button>
       </div>
     </div>
+    <div class="api-docs">
+       <h3 style="margin-bottom:15px; text-align:center;">API Documentation</h3>
+       <p><code>GET /api/check?proxyip=YOUR_IP&token=YOUR_TOKEN</code></p>
+       <p><code>GET /api/resolve?domain=YOUR_DOMAIN&token=YOUR_TOKEN</code></p>
+       <p><code>GET /api/ip-info?ip=TARGET_IP&token=YOUR_TOKEN</code></p>
+    </div>
     <footer class="footer">
       <p>© ${new Date().getFullYear()} Proxy IP Checker - By <strong>mehdi-hexing</strong></p>
     </footer>
   </div>
   <div id="toast" class="toast"></div>
   <button id="theme-toggle" aria-label="Toggle Theme">
-    <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="12" r="5"></circle>
       <line x1="12" y1="1" x2="12" y2="3"></line>
       <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -432,10 +442,11 @@ function generateMainHTML(faviconURL) {
         }
         params.append('token', TEMP_TOKEN);
         const response = await fetch(path + '?' + params.toString());
+        const data = await response.json();
         if (!response.ok) {
-            throw new Error('API Error: ' + await response.text());
+            throw new Error(data.error || `API Error: ${response.status}`);
         }
-        return response.json();
+        return data;
     }
 
     function isIPAddress(input) {
@@ -595,6 +606,7 @@ function generateMainHTML(faviconURL) {
                         '<h3>❌ ProxyIP Invalid</h3>' +
                         '<p><strong>📍 IP Address:</strong> ' + proxyip + '</p>' +
                         '<p><strong>Error:</strong> ' + (data.error || 'Check failed.') + '</p>' +
+                        '<p><strong>🕒 Check Time:</strong> ' + new Date(data.timestamp).toLocaleString() + '</p>' +
                     '</div>';
             }
         } catch (error) {
@@ -625,7 +637,7 @@ function generateMainHTML(faviconURL) {
             const ips = resolveData.ips;
             
             let html = '<div class="result-card result-warning">' +
-                '<h3 id="domain-result-header">🔍 Domain Resolution: ' + domain + '</h3>' +
+                '<h3 id="domain-result-header">🔍 Resolving & Checking Domain...</h3>' +
                 '<p><strong>🌐 Domain:</strong> <span class="copy-btn" data-copy="' + domain + '">' + domain + '</span></p>' +
                 '<p><strong>🔌 Default Port for Test:</strong> ' + port + '</p>' +
                 '<p><strong>📋 IPs Found:</strong> ' + ips.length + '</p>' +
@@ -687,4 +699,4 @@ function generateMainHTML(faviconURL) {
   </script>
 </body>
 </html>`;
-      }
+            }
