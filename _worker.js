@@ -150,20 +150,46 @@ function generateMainHTML(token, faviconURL) {
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --primary-color: #3498db; --primary-dark: #2980b9; --success-color: #2ecc71;
-      --error-color: #e74c3c; --bg-primary: #ffffff; --bg-secondary: #f8f9fa;
-      --text-primary: #2c3e50; --text-light: #adb5bd; --border-color: #dee2e6;
-      --border-radius: 12px; --border-radius-sm: 8px;
+      --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      --bg-primary: #ffffff;
+      --bg-secondary: #f8f9fa;
+      --text-primary: #2c3e50;
+      --text-secondary: #ffffff;
+      --text-light: #adb5bd;
+      --border-color: #dee2e6;
+      --primary-color: #3498db; 
+      --success-color: #2ecc71;
+      --error-color: #e74c3c; 
+      --border-radius: 12px; 
+      --border-radius-sm: 8px;
     }
-    body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: var(--text-primary); line-height: 1.6; margin:0; padding:20px; min-height: 100vh; display: flex; flex-direction: column; align-items: center; box-sizing: border-box;}
+    body.dark-mode {
+      --bg-gradient: linear-gradient(135deg, #232526 0%, #414345 100%);
+      --bg-primary: #2c3e50;
+      --bg-secondary: #34495e;
+      --text-primary: #ecf0f1;
+      --text-secondary: #2c3e50;
+      --text-light: #95a5a6;
+      --border-color: #465b71;
+    }
+    body { 
+      font-family: 'Inter', sans-serif; 
+      background: var(--bg-gradient);
+      color: var(--text-primary);
+      line-height: 1.6; margin:0; padding:20px; min-height: 100vh; 
+      display: flex; flex-direction: column; align-items: center; box-sizing: border-box;
+      transition: background 0.3s ease, color 0.3s ease;
+    }
     .container { max-width: 800px; width: 100%; }
-    .card { background: var(--bg-primary); border-radius: var(--border-radius); padding: 25px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); margin-bottom: 25px; }
+    .header { display: flex; justify-content: center; align-items: center; position: relative; margin-bottom: 30px; }
+    .main-title { font-size: 2.5rem; font-weight: 700; color: #fff; text-shadow: 1px 1px 3px rgba(0,0,0,0.2); margin: 0; }
+    .card { background: var(--bg-primary); border-radius: var(--border-radius); padding: 25px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); margin-bottom: 25px; transition: background 0.3s ease; }
     .form-section { display: flex; flex-direction: column; align-items: center; }
     .form-label { display: block; font-weight: 500; margin-bottom: 8px; color: var(--text-primary); width: 100%; max-width: 450px; text-align: left;}
     .input-wrapper { width: 100%; max-width: 450px; margin-bottom: 15px; }
-    .form-input { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.95rem; box-sizing: border-box; }
+    .form-input { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.95rem; box-sizing: border-box; background-color: var(--bg-secondary); color: var(--text-primary); transition: border-color 0.3s ease, background-color 0.3s ease; }
     textarea.form-input { min-height: 60px; resize: vertical; }
-    .btn-primary { background: linear-gradient(135deg, var(--primary-color), var(--primary-dark)); color: white; padding: 12px 25px; border: none; border-radius: var(--border-radius-sm); font-size: 1rem; font-weight: 500; cursor: pointer; width: 100%; max-width: 450px; box-sizing: border-box; }
+    .btn-primary { background: linear-gradient(135deg, var(--primary-color), #2980b9); color: white; padding: 12px 25px; border: none; border-radius: var(--border-radius-sm); font-size: 1rem; font-weight: 500; cursor: pointer; width: 100%; max-width: 450px; box-sizing: border-box; }
     .btn-primary:disabled { background: #bdc3c7; cursor: not-allowed; }
     .btn-secondary { background-color: var(--bg-secondary); color: var(--text-primary); padding: 8px 15px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.9rem; cursor: pointer; }
     .loading-spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 1s linear infinite; display: none; margin-left: 8px; }
@@ -173,26 +199,55 @@ function generateMainHTML(token, faviconURL) {
     .result-success { background-color: #d4edda; border-left: 4px solid var(--success-color); color: #155724; }
     .result-error { background-color: #f8d7da; border-left: 4px solid var(--error-color); color: #721c24; }
     .copy-btn { background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 4px 8px; border-radius: 4px; font-size: 0.85em; cursor: pointer; margin-left: 8px;}
-    .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 12px 20px; border-radius:var(--border-radius-sm); z-index:1000; opacity:0; transition: opacity 0.3s; box-sizing: border-box;}
+    .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 12px 20px; border-radius:var(--border-radius-sm); z-index:1000; opacity:0; transition: opacity 0.3s, transform 0.3s; }
     .toast.show { opacity:1; }
     #successfulRangeIPsList { border: 1px solid var(--border-color); padding: 10px; border-radius: var(--border-radius-sm); }
-    .ip-item { padding:8px 5px; border-bottom:1px solid #f0f0f0; display:flex; justify-content:space-between; align-items:center; }
+    .ip-item { padding:8px 5px; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; }
     #successfulRangeIPsList .ip-item:last-child { border-bottom: none; }
-    .api-docs { margin-top: 30px; padding: 25px; background: var(--bg-primary); border-radius: var(--border-radius); }
-    .api-docs p { background-color: #f7f7f9; border: 1px solid #e1e1e8; padding: 10px; border-radius: 4px; margin-bottom: 10px; word-break: break-all; }
+    .api-docs { margin-top: 30px; padding: 25px; background: var(--bg-primary); border-radius: var(--border-radius); transition: background 0.3s ease; }
+    .api-docs p { background-color: var(--bg-secondary); border: 1px solid var(--border-color); padding: 10px; border-radius: 4px; margin-bottom: 10px; word-break: break-all; transition: background 0.3s ease, border-color 0.3s ease;}
     .api-docs p code { background: none; padding: 0;}
     .footer { text-align: center; padding: 20px; margin-top: 30px; color: rgba(255,255,255,0.8); font-size: 0.85em; border-top: 1px solid rgba(255,255,255,0.1); }
     .github-corner svg { fill: #fff; color: var(--primary-color); position: fixed; top: 0; border: 0; right: 0; z-index: 1001;}
     .octo-arm{transform-origin:130px 106px}
     .github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}
     @keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}
+    #theme-toggle {
+        position: absolute;
+        left: 20px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+    }
+    #theme-toggle svg {
+        width: 24px;
+        height: 24px;
+        fill: white;
+    }
+    .dark-mode #theme-toggle .sun-icon { display: block; }
+    .dark-mode #theme-toggle .moon-icon { display: none; }
+    #theme-toggle .sun-icon { display: none; }
+    #theme-toggle .moon-icon { display: block; }
   </style>
 </head>
 <body>
   <a href="https://github.com/mehdi-hexing/CF-Workers-CheckProxyIP" target="_blank" class="github-corner" aria-label="View source on Github"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
   <div class="container">
-    <header style="text-align: center; margin-bottom: 30px;">
-      <h1 style="font-size: 2.5rem; font-weight: 700; background: linear-gradient(135deg, #ffffff 0%, #f0f0f0 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Proxy IP Checker</h1>
+    <header class="header">
+      <h1 class="main-title">Proxy IP Checker</h1>
+      <button id="theme-toggle" aria-label="Toggle theme">
+        <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 11.807A9.002 9.002 0 0 1 10.049 2.5a9.948 9.948 0 0 0-5.12 3.16A9.923 9.923 0 0 0 2.5 10.951a9.926 9.926 0 0 0 3.16 5.235 9.947 9.947 0 0 0 5.234 3.16 9.924 9.924 0 0 0 5.305-2.488A9.002 9.002 0 0 1 12 11.807z"></path></svg>
+        <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18a6 6 0 1 1 6-6 6.007 6.007 0 0 1-6 6zm0-10a4 4 0 1 0 4 4 4.005 4.005 0 0 0-4-4zm0-5a1 1 0 0 1 1 1v2a1 1 0 0 1-2 0V4a1 1 0 0 1 1-1zm0 18a1 1 0 0 1-1-1v-2a1 1 0 0 1 2 0v2a1 1 0 0 1-1 1zM5.636 6.636a1 1 0 0 1 .707-.293 1 1 0 0 1 .707 1.707l-1.414 1.414a1 1 0 1 1-1.414-1.414zM18.364 19.364a1 1 0 0 1-.707.293 1 1 0 0 1-.707-1.707l1.414-1.414a1 1 0 1 1 1.414 1.414zM4 12a1 1 0 0 1-1-1H1a1 1 0 0 1 0-2h2a1 1 0 0 1 1 1zm18 0a1 1 0 0 1-1-1h-2a1 1 0 0 1 0-2h2a1 1 0 0 1 1 1zM6.636 18.364a1 1 0 0 1-1.414-1.414l1.414-1.414a1 1 0 0 1 1.414 1.414a1 1 0 0 1-.707.293zm12.728-11.728a1 1 0 1 1-1.414-1.414l-1.414 1.414a1 1 0 1 1-1.414-1.414 1 1 0 0 1 1.414 1.414l1.414-1.414a1 1 0 0 1 1.414 0z"></path></svg>
+      </button>
     </header>
 
     <div class="card">
@@ -227,7 +282,6 @@ function generateMainHTML(token, faviconURL) {
     <div class="api-docs">
        <h3 style="margin-bottom:15px; text-align:center;">API Documentation</h3>
        <p><code>GET /api/check?proxyip=YOUR_IP&token=YOUR_TOKEN</code></p>
-       <p><code>GET /api/resolve?domain=YOUR_DOMAIN&token=YOUR_TOKEN</code></p>
        <p><code>GET /api/ip-info?ip=TARGET_IP&token=YOUR_TOKEN</code></p>
     </div>
 
@@ -244,9 +298,11 @@ function generateMainHTML(token, faviconURL) {
     let currentSuccessfulRangeIPs = [];
 
     document.addEventListener('DOMContentLoaded', () => {
-        document.getElementById('checkBtn').addEventListener('click', checkInputs);
+        const checkBtn = document.getElementById('checkBtn');
+        checkBtn.addEventListener('click', checkInputs);
         
-        document.getElementById('copyRangeBtn').addEventListener('click', () => {
+        const copyBtn = document.getElementById('copyRangeBtn');
+        copyBtn.addEventListener('click', () => {
             if (currentSuccessfulRangeIPs.length > 0) {
                 const textToCopy = currentSuccessfulRangeIPs.map(item => item.ip).join('\\n');
                 copyToClipboard(textToCopy, null, "All successful IPs copied!");
@@ -260,6 +316,19 @@ function generateMainHTML(token, faviconURL) {
                 const text = event.target.getAttribute('data-copy');
                 if (text) copyToClipboard(text, event.target, "Copied!");
             }
+        });
+
+        const themeToggle = document.getElementById('theme-toggle');
+        const body = document.body;
+        const currentTheme = localStorage.getItem('theme');
+
+        if (currentTheme === 'dark' || (!currentTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            body.classList.add('dark-mode');
+        }
+
+        themeToggle.addEventListener('click', () => {
+            body.classList.toggle('dark-mode');
+            localStorage.setItem('theme', body.classList.contains('dark-mode') ? 'dark' : 'light');
         });
     });
 
@@ -316,7 +385,7 @@ function generateMainHTML(token, faviconURL) {
         const rangeResultSummary = document.getElementById('rangeResultSummary');
         const successfulIPsListDiv = document.getElementById('successfulRangeIPsList');
         const copyRangeBtn = document.getElementById('copyRangeBtn');
-
+        
         rangeResultCard.style.display = 'none';
         currentSuccessfulRangeIPs = [];
         let totalChecked = 0, totalSuccess = 0;
@@ -329,7 +398,8 @@ function generateMainHTML(token, faviconURL) {
             if (individualRangeQueries.length > 0) {
                 rangeResultCard.style.display = 'block';
                 successfulIPsListDiv.innerHTML = '<p style="text-align:center; color: var(--text-light);">Processing...</p>';
-
+                rangeResultSummary.innerHTML = 'Total Tested: 0 | Total Successful: 0';
+                
                 for (const rangeQuery of individualRangeQueries) {
                     const ipsInRange = parseIPRange(rangeQuery);
                     if (ipsInRange.length === 0) {
@@ -374,7 +444,7 @@ function generateMainHTML(token, faviconURL) {
     function updateSuccessfulRangeIPsDisplay() {
         const listDiv = document.getElementById('successfulRangeIPsList');
         if (currentSuccessfulRangeIPs.length === 0) {
-            listDiv.innerHTML = '<p style="text-align:center; color: var(--text-light);">No successful IPs yet.</p>';
+            listDiv.innerHTML = '<p style="text-align:center; color: var(--text-light);">No successful IPs found.</p>';
             return;
         }
         let html = '<div class="ip-grid">';
@@ -445,4 +515,4 @@ function generateMainHTML(token, faviconURL) {
   </script>
 </body>
 </html>`;
-  }
+}
