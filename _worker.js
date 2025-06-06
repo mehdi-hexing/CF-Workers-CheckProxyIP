@@ -95,6 +95,10 @@ export default {
             const providedToken = url.searchParams.get('token');
             return providedToken === permanentTOKEN || providedToken === temporaryTOKEN;
         };
+        
+        if (path.toLowerCase() === '/api/get-token') {
+            return new Response(JSON.stringify({ token: temporaryTOKEN }), { headers: { "Content-Type": "application/json" } });
+        }
 
         if (!isTokenValid()) {
             return new Response(JSON.stringify({ status: "error", message: "Invalid TOKEN" }), {
@@ -129,7 +133,7 @@ export default {
         return Response.redirect(faviconURL, 302);
     }
     
-    return new Response(generateMainHTML(temporaryTOKEN, faviconURL), {
+    return new Response(generateMainHTML(faviconURL), {
       headers: { "content-type": "text/html;charset=UTF-8" }
     });
   }
@@ -137,7 +141,7 @@ export default {
 
 // --- HTML Generation ---
 
-function generateMainHTML(token, faviconURL) {
+function generateMainHTML(faviconURL) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -171,11 +175,12 @@ function generateMainHTML(token, faviconURL) {
       --border-color: #465b71;
     }
     html {
-        height: 100%;
+      height: 100%;
     }
     body { 
       font-family: 'Inter', sans-serif; 
       background: var(--bg-gradient);
+      background-attachment: fixed;
       color: var(--text-primary);
       line-height: 1.6; margin:0; padding:0; min-height: 100%; 
       display: flex; flex-direction: column; align-items: center;
@@ -219,7 +224,6 @@ function generateMainHTML(token, faviconURL) {
     .octo-arm{transform-origin:130px 106px}
     .github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}
     @keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}
-    
     .themeToggle {
         position: fixed;
         bottom: 25px;
@@ -228,39 +232,12 @@ function generateMainHTML(token, faviconURL) {
         color: var(--text-primary);
         width: 3em;
     }
-    .st-sunMoonThemeToggleBtn {
-        position: relative;
-        cursor: pointer;
-    }
-    .st-sunMoonThemeToggleBtn .themeToggleInput {
-        opacity: 0;
-        position: absolute;
-        width: 100%;
-        height: 100%;
-    }
-    .st-sunMoonThemeToggleBtn svg {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-        height: 100%;
-        transition: transform 0.4s ease;
-        transform: rotate(40deg);
-        fill: var(--text-primary);
-    }
-    .st-sunMoonThemeToggleBtn svg .sunMoon {
-        transform-origin: center center;
-        transition: inherit;
-        transform: scale(1);
-    }
-    .st-sunMoonThemeToggleBtn svg .sunRay {
-        transform-origin: center center;
-        transform: scale(0);
-    }
-    .st-sunMoonThemeToggleBtn svg mask > circle {
-        transition: transform 0.64s cubic-bezier(0.41, 0.64, 0.32, 1.575);
-        transform: translate(0px, 0px);
-    }
+    .st-sunMoonThemeToggleBtn { position: relative; cursor: pointer; }
+    .st-sunMoonThemeToggleBtn .themeToggleInput { opacity: 0; position: absolute; width: 100%; height: 100%;}
+    .st-sunMoonThemeToggleBtn svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transition: transform 0.4s ease; transform: rotate(40deg); fill: var(--text-primary); }
+    .st-sunMoonThemeToggleBtn svg .sunMoon { transform-origin: center center; transition: inherit; transform: scale(1); }
+    .st-sunMoonThemeToggleBtn svg .sunRay { transform-origin: center center; transform: scale(0); }
+    .st-sunMoonThemeToggleBtn svg mask > circle { transition: transform 0.64s cubic-bezier(0.41, 0.64, 0.32, 1.575); transform: translate(0px, 0px); }
     .st-sunMoonThemeToggleBtn svg .sunRay2 { animation-delay: 0.05s !important; }
     .st-sunMoonThemeToggleBtn svg .sunRay3 { animation-delay: 0.1s !important; }
     .st-sunMoonThemeToggleBtn svg .sunRay4 { animation-delay: 0.17s !important; }
@@ -270,10 +247,7 @@ function generateMainHTML(token, faviconURL) {
     .st-sunMoonThemeToggleBtn .themeToggleInput:checked + svg mask > circle { transform: translate(16px, -3px); }
     .st-sunMoonThemeToggleBtn .themeToggleInput:checked + svg .sunMoon { transform: scale(0.55); }
     .st-sunMoonThemeToggleBtn .themeToggleInput:checked + svg .sunRay { animation: showRay1832 0.4s ease 0s 1 forwards; }
-    @keyframes showRay1832 {
-        0% { transform: scale(0); }
-        100% { transform: scale(1); }
-    }
+    @keyframes showRay1832 { 0% { transform: scale(0); } 100% { transform: scale(1); } }
   </style>
 </head>
 <body>
@@ -282,19 +256,16 @@ function generateMainHTML(token, faviconURL) {
     <header class="header">
       <h1 class="main-title">Proxy IP Checker</h1>
     </header>
-
     <div class="card">
       <div class="form-section">
         <label for="proxyip" class="form-label">Enter Single Proxy IP or Domain:</label>
         <div class="input-wrapper">
           <input type="text" id="proxyip" class="form-input" placeholder="127.0.0.1 or nima.nscl.ir" autocomplete="off">
         </div>
-        
         <label for="proxyipRangeRows" class="form-label">Enter IP Range(s) (one per line):</label>
         <div class="input-wrapper">
           <textarea id="proxyipRangeRows" class="form-input" rows="3" placeholder="127.0.0.0/24 or 127.0.0.0-255" autocomplete="off"></textarea>
         </div>
-
         <button id="checkBtn" class="btn-primary">
           <span style="display: flex; align-items: center; justify-content: center;">
             <span class="btn-text">Check</span>
@@ -302,7 +273,6 @@ function generateMainHTML(token, faviconURL) {
           </span>
         </button>
       </div>
-      
       <div id="result" class="result-section"></div>
       <div id="rangeResultCard" class="result-card result-section" style="display:none;">
          <h4>Successful IPs in Range:</h4>
@@ -311,19 +281,15 @@ function generateMainHTML(token, faviconURL) {
          <button class="btn-secondary" id="copyRangeBtn" style="display:none;">Copy Successful IPs</button>
       </div>
     </div>
-    
     <div class="api-docs">
        <h3 style="margin-bottom:15px; text-align:center;">API Documentation</h3>
        <p><code>GET /api/check?proxyip=YOUR_IP&token=YOUR_TOKEN</code></p>
-       <p><code>GET /api/resolve?domain=YOUR_DOMAIN&token=YOUR_TOKEN</code></p>
        <p><code>GET /api/ip-info?ip=TARGET_IP&token=YOUR_TOKEN</code></p>
     </div>
-
     <footer class="footer">
       <p>© ${new Date().getFullYear()} Proxy IP Checker - By <strong>mehdi-hexing</strong></p>
     </footer>
   </div>
-
   <div id="toast" class="toast"></div>
   <label for="themeToggle" class="themeToggle st-sunMoonThemeToggleBtn">
     <input type="checkbox" id="themeToggle" class="themeToggleInput" />
@@ -345,18 +311,18 @@ function generateMainHTML(token, faviconURL) {
   </label>
   <script>
     let isChecking = false;
-    const TEMP_TOKEN = "${token}";
+    let TEMP_TOKEN = '';
     let currentSuccessfulRangeIPs = [];
 
     document.addEventListener('DOMContentLoaded', () => {
+        fetch('/api/get-token').then(res => res.json()).then(data => { TEMP_TOKEN = data.token; });
+        
         document.getElementById('checkBtn').addEventListener('click', checkInputs);
         
         document.getElementById('copyRangeBtn').addEventListener('click', () => {
             if (currentSuccessfulRangeIPs.length > 0) {
                 const textToCopy = currentSuccessfulRangeIPs.map(item => item.ip).join('\\n');
                 copyToClipboard(textToCopy, null, "All successful IPs copied!");
-            } else {
-                showToast("No successful IPs to copy.");
             }
         });
 
@@ -388,13 +354,9 @@ function generateMainHTML(token, faviconURL) {
         }
 
         themeToggleCheckbox.addEventListener('change', () => {
-            if (themeToggleCheckbox.checked) {
-                applyTheme('dark');
-                localStorage.setItem('theme', 'dark');
-            } else {
-                applyTheme('light');
-                localStorage.setItem('theme', 'light');
-            }
+            const isDarkMode = themeToggleCheckbox.checked;
+            localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+            applyTheme(isDarkMode ? 'dark' : 'light');
         });
     });
 
@@ -423,6 +385,13 @@ function generateMainHTML(token, faviconURL) {
     }
 
     async function fetchAPI(path, params) {
+        if (!TEMP_TOKEN) {
+             showToast("Session not ready. Retrying...");
+             await new Promise(resolve => setTimeout(resolve, 500));
+             if (!TEMP_TOKEN) { // Try one last time
+                throw new Error("Could not retrieve session token.");
+             }
+        }
         params.append('token', TEMP_TOKEN);
         const response = await fetch(path + '?' + params.toString());
         if (!response.ok) {
