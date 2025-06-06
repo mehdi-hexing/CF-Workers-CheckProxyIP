@@ -200,6 +200,8 @@ function generateMainHTML(faviconURL) {
       --result-success-text: #155724;
       --result-error-bg: #f8d7da;
       --result-error-text: #721c24;
+      --result-warning-bg: #fff3cd;
+      --result-warning-text: #856404;
       --border-radius: 12px; 
       --border-radius-sm: 8px;
     }
@@ -214,6 +216,8 @@ function generateMainHTML(faviconURL) {
       --result-success-text: #ffffff;
       --result-error-bg: #5a2c2c;
       --result-error-text: #ffffff;
+      --result-warning-bg: #5a4b1e;
+      --result-warning-text: #fff8dd;
     }
     html {
       height: 100%;
@@ -250,17 +254,13 @@ function generateMainHTML(faviconURL) {
     .result-card { padding: 18px; border-radius: var(--border-radius-sm); margin-bottom: 12px; transition: background-color 0.3s, color 0.3s, border-color 0.3s; }
     .result-success { background-color: var(--result-success-bg); border-left: 4px solid var(--success-color); color: var(--result-success-text); }
     .result-error { background-color: var(--result-error-bg); border-left: 4px solid var(--error-color); color: var(--result-error-text); }
-    .result-warning { background-color: #fff3cd; border-left: 4px solid var(--warning-color); color: #856404; }
+    .result-warning { background-color: var(--result-warning-bg); border-left: 4px solid #f39c12; color: var(--result-warning-text); }
     .copy-btn { background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 4px 8px; border-radius: 4px; font-size: 0.85em; cursor: pointer; margin-left: 8px;}
     .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 12px 20px; border-radius:var(--border-radius-sm); z-index:1001; opacity:0; transition: opacity 0.3s, transform 0.3s; }
     .toast.show { opacity:1; }
     #successfulRangeIPsList, .domain-ip-list { border: 1px solid var(--border-color); padding: 10px; border-radius: var(--border-radius-sm); max-height: 250px; overflow-y: auto;}
     .ip-item { padding:8px 5px; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; }
     #successfulRangeIPsList .ip-item:last-child, .domain-ip-list .ip-item:last-child { border-bottom: none; }
-    .api-docs { margin-top: 30px; padding: 25px; background: var(--bg-primary); border-radius: var(--border-radius); transition: background 0.3s ease; }
-    .api-docs p { background-color: var(--bg-secondary); border: 1px solid var(--border-color); padding: 10px; border-radius: 4px; margin-bottom: 10px; word-break: break-all; transition: background 0.3s ease, border-color 0.3s ease;}
-    .api-docs p code { background: none; padding: 0;}
-    .footer { text-align: center; padding: 20px; margin-top: 30px; color: rgba(255,255,255,0.8); font-size: 0.85em; border-top: 1px solid rgba(255,255,255,0.1); }
     .github-corner svg { fill: var(--primary-color); color: #fff; position: fixed; top: 0; border: 0; right: 0; z-index: 1000;}
     body.dark-mode .github-corner svg { fill: #fff; color: #151513; }
     .octo-arm{transform-origin:130px 106px}
@@ -327,12 +327,6 @@ function generateMainHTML(faviconURL) {
          <button class="btn-secondary" id="copyRangeBtn" style="display:none;">Copy Successful IPs</button>
       </div>
     </div>
-    <div class="api-docs">
-       <h3 style="margin-bottom:15px; text-align:center;">API Documentation</h3>
-       <p><code>GET /api/check?proxyip=YOUR_IP&token=YOUR_TOKEN</code></p>
-       <p><code>GET /api/resolve?domain=YOUR_DOMAIN&token=YOUR_TOKEN</code></p>
-       <p><code>GET /api/ip-info?ip=TARGET_IP&token=YOUR_TOKEN</code></p>
-    </div>
     <footer class="footer">
       <p>© ${new Date().getFullYear()} Proxy IP Checker - By <strong>mehdi-hexing</strong></p>
     </footer>
@@ -358,6 +352,7 @@ function generateMainHTML(faviconURL) {
     let isChecking = false;
     let TEMP_TOKEN = '';
     let currentSuccessfulRangeIPs = [];
+    let ipCheckResults = new Map();
 
     document.addEventListener('DOMContentLoaded', () => {
         fetch('/api/get-token').then(res => res.json()).then(data => { TEMP_TOKEN = data.token; });
@@ -543,6 +538,37 @@ function generateMainHTML(faviconURL) {
         listDiv.innerHTML = html;
     }
 
+    function formatIPInfo(ipInfo, isShort = false) {
+      if (!ipInfo || ipInfo.status !== 'success') { return ''; }
+      const country = ipInfo.country || 'N/A';
+      const as = ipInfo.as || 'N/A';
+      if (isShort) return ' (' + country + ' - ' + as.substring(0, 15) + '...)';
+      return '<span style="font-size:0.85em; color:#555;">(' + country + ' - ' + as + ')</span>';
+    }
+
+    async function getIPInfoWithIndex(ip, index) {
+      try {
+        const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: ip.split(':')[0].replace(/[\\[\\]]/g, '') }));
+        const infoElement = document.getElementById('domain-ip-info-' + index);
+        if (infoElement) infoElement.innerHTML = formatIPInfo(ipInfo, true);
+      } catch (error) { console.warn("Could not get IP info for " + ip, error); }
+    }
+
+    async function checkDomainIPWithIndex(ip, port, index) {
+      try {
+        const ipToTest = ip.includes(':') || ip.includes(']:') ? ip : (ip + ':' + port);
+        const result = await fetchAPI('/api/check', new URLSearchParams({ proxyip: ipToTest }));
+        ipCheckResults.set(ipToTest, result);
+        
+        const statusIcon = document.getElementById('domain-ip-status-' + index);
+        if (statusIcon) statusIcon.textContent = result.success ? '✅' : '❌';
+      } catch (error) {
+        const statusIcon = document.getElementById('domain-ip-status-' + index);
+        if (statusIcon) statusIcon.textContent = '⚠️';
+        ipCheckResults.set(ip, { success: false, error: error.message });
+      }
+    }
+
     async function checkAndDisplaySingleIP(proxyip) {
         const resultDiv = document.getElementById('result');
         resultDiv.innerHTML = '<p style="text-align:center; color: var(--text-light);">Checking...</p>';
@@ -575,47 +601,59 @@ function generateMainHTML(faviconURL) {
             resultDiv.innerHTML = '<div class="result-card result-error"><h3>❌ Error</h3><p>' + error.message + '</p></div>';
         }
     }
-    
+
     async function checkAndDisplayDomain(domain) {
         const resultDiv = document.getElementById('result');
+        ipCheckResults.clear();
         resultDiv.innerHTML = '<p style="text-align:center; color: var(--text-light);">Resolving domain...</p>';
         try {
-            const resolveData = await fetchAPI('/api/resolve', new URLSearchParams({ domain: domain }));
+            let port = 443;
+            let cleanDomain = domain;
+            if (domain.includes(':') && !domain.startsWith('[')) {
+                const parts = domain.split(':');
+                if(parts.length === 2) {
+                   cleanDomain = parts[0];
+                   const parsedPort = parseInt(parts[1]);
+                   if(!isNaN(parsedPort)) port = parsedPort;
+                }
+            }
+
+            const resolveData = await fetchAPI('/api/resolve', new URLSearchParams({ domain: cleanDomain }));
             if (!resolveData.success || !resolveData.ips || resolveData.ips.length === 0) {
                 throw new Error(resolveData.error || 'Could not resolve domain to any IPs.');
             }
             const ips = resolveData.ips;
+            
             let html = '<div class="result-card result-warning">' +
-                '<h3>🔍 Domain Resolution: ' + domain + '</h3>' +
-                '<p>Found ' + ips.length + ' IP(s). Checking each...</p>' +
+                '<h3 id="domain-result-header">🔍 Domain Resolution: ' + domain + '</h3>' +
+                '<p><strong>🌐 Domain:</strong> <span class="copy-btn" data-copy="' + domain + '">' + domain + '</span></p>' +
+                '<p><strong>🔌 Default Port for Test:</strong> ' + port + '</p>' +
+                '<p><strong>📋 IPs Found:</strong> ' + ips.length + '</p>' +
                 '<div class="domain-ip-list">';
             ips.forEach((ip, index) => {
                 html += '<div class="ip-item" id="domain-ip-item-' + index + '">' +
-                        '<span>' + ip + '</span>' +
+                        '<div><span class="copy-btn" data-copy="' + ip + '">' + ip + '</span><span id="domain-ip-info-' + index + '"></span></div>' +
                         '<span id="domain-ip-status-' + index + '">🔄</span>' +
                         '</div>';
             });
             html += '</div></div>';
             resultDiv.innerHTML = html;
 
-            let successCount = 0;
-            const checkPromises = ips.map(async (ip, index) => {
-                const statusSpan = document.getElementById('domain-ip-status-' + index);
-                try {
-                    const checkResult = await fetchAPI('/api/check', new URLSearchParams({ proxyip: ip + ':443' }));
-                    if (checkResult.success) {
-                        statusSpan.textContent = '✅';
-                        successCount++;
-                    } else {
-                        statusSpan.textContent = '❌';
-                    }
-                } catch(e) {
-                    statusSpan.textContent = '⚠️';
-                }
-            });
-            await Promise.all(checkPromises);
+            const checkPromises = ips.map((ip, index) => checkDomainIPWithIndex(ip, port, index));
+            const ipInfoPromises = ips.map((ip, index) => getIPInfoWithIndex(ip, index));
             
-            resultDiv.querySelector('h3').textContent = '🔍 Domain Scan Complete ('+successCount+'/'+ips.length+' Valid)';
+            await Promise.all([...checkPromises, ...ipInfoPromises]);
+
+            const successCount = Array.from(ipCheckResults.values()).filter(r => r.success).length;
+            const resultCardHeader = document.getElementById('domain-result-header');
+
+            if (successCount === ips.length) {
+                resultCardHeader.textContent = '✅ All Domain IPs Valid';
+            } else if (successCount === 0) {
+                resultCardHeader.textContent = '❌ All Domain IPs Invalid';
+            } else {
+                resultCardHeader.textContent = '⚠️ Some Domain IPs Valid (' + successCount + '/' + ips.length + ')';
+            }
 
         } catch (error) {
             resultDiv.innerHTML = '<div class="result-card result-error"><h3>❌ Error</h3><p>' + error.message + '</p></div>';
@@ -649,4 +687,4 @@ function generateMainHTML(faviconURL) {
   </script>
 </body>
 </html>`;
-                                                                      }
+      }
