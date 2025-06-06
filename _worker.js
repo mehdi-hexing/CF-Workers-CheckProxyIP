@@ -85,42 +85,40 @@ export default {
     temporaryTOKEN = await doubleHash(hostname + timestampForToken + userAgent);
     permanentTOKEN = env.TOKEN || temporaryTOKEN;
     
-    // API Route Handling
     if (path.toLowerCase().startsWith('/api/')) {
-      const isTokenValid = () => {
-        if (!env.TOKEN) return true; // No token set, public access
-        const providedToken = url.searchParams.get('token');
-        return providedToken === permanentTOKEN || providedToken === temporaryTOKEN;
-      };
+        const isTokenValid = () => {
+            if (!env.TOKEN) return true;
+            const providedToken = url.searchParams.get('token');
+            return providedToken === permanentTOKEN || providedToken === temporaryTOKEN;
+        };
 
-      if (!isTokenValid()) {
-        return new Response(JSON.stringify({ status: "error", message: "Invalid TOKEN" }), {
-          status: 403, headers: { "Content-Type": "application/json" }
-        });
-      }
+        if (!isTokenValid()) {
+            return new Response(JSON.stringify({ status: "error", message: "Invalid TOKEN" }), {
+                status: 403, headers: { "Content-Type": "application/json" }
+            });
+        }
 
-      if (path.toLowerCase() === '/api/check') {
-        if (!url.searchParams.has('proxyip')) return new Response('Missing proxyip parameter', { status: 400 });
-        const proxyIPInput = url.searchParams.get('proxyip');
-        const result = await checkProxyIP(proxyIPInput);
-        return new Response(JSON.stringify(result), {
-          status: result.success ? 200 : 502, headers: { "Content-Type": "application/json" }
-        });
-      }
+        if (path.toLowerCase() === '/api/check') {
+            if (!url.searchParams.has('proxyip')) return new Response('Missing proxyip parameter', { status: 400 });
+            const proxyIPInput = url.searchParams.get('proxyip');
+            const result = await checkProxyIP(proxyIPInput);
+            return new Response(JSON.stringify(result), {
+                status: result.success ? 200 : 502, headers: { "Content-Type": "application/json" }
+            });
+        }
 
-      if (path.toLowerCase() === '/api/ip-info') {
-        let ip = url.searchParams.get('ip') || request.headers.get('CF-Connecting-IP');
-        if (!ip) return new Response('IP parameter not provided', { status: 400 });
-        if (ip.includes('[')) ip = ip.replace(/\[|\]/g, '');
-        const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,message,query,country,countryCode,as&lang=en`);
-        const data = await response.json();
-        return new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } });
-      }
-      
-      return new Response('API route not found', { status: 404 });
+        if (path.toLowerCase() === '/api/ip-info') {
+            let ip = url.searchParams.get('ip') || request.headers.get('CF-Connecting-IP');
+            if (!ip) return new Response('IP parameter not provided', { status: 400 });
+            if (ip.includes('[')) ip = ip.replace(/\[|\]/g, '');
+            const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,message,query,country,countryCode,as&lang=en`);
+            const data = await response.json();
+            return new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } });
+        }
+        
+        return new Response('API route not found', { status: 404 });
     }
     
-    // UI Handling
     const faviconURL = env.ICO || 'https://cf-assets.www.cloudflare.com/dzlvafdwdttg/19kSkLSfWtDcspvQI5pit4/c5630cf25d589a0de91978ca29486259/performance-acceleration-bolt.svg';
 
     if (path.toLowerCase() === '/favicon.ico') {
@@ -144,6 +142,7 @@ function generateMainHTML(token, faviconURL) {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root {
       --primary-color: #3498db; --primary-dark: #2980b9; --success-color: #2ecc71;
@@ -173,9 +172,17 @@ function generateMainHTML(token, faviconURL) {
     #successfulRangeIPsList { border: 1px solid var(--border-color); padding: 10px; border-radius: var(--border-radius-sm); }
     .ip-item { padding:8px 5px; border-bottom:1px solid #f0f0f0; display:flex; justify-content:space-between; align-items:center; }
     #successfulRangeIPsList .ip-item:last-child { border-bottom: none; }
+    .api-docs { margin-top: 30px; padding: 25px; background: var(--bg-primary); border-radius: var(--border-radius); }
+    .api-docs p code { display: inline-block; background-color: #f0f0f0; padding: 2px 5px; border-radius: 4px; font-family: monospace; }
+    .footer { text-align: center; padding: 20px; margin-top: 30px; color: rgba(255,255,255,0.8); font-size: 0.85em; border-top: 1px solid rgba(255,255,255,0.1); }
+    .github-corner svg { fill: #fff; color: var(--primary-color); position: fixed; top: 0; border: 0; right: 0; z-index: 1001;}
+    .octo-arm{transform-origin:130px 106px}
+    .github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}
+    @keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}
   </style>
 </head>
 <body>
+  <a href="https://github.com/mehdi-hexing/CF-Workers-CheckProxyIP" target="_blank" class="github-corner" aria-label="View source on Github"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
   <div class="container">
     <header style="text-align: center; margin-bottom: 30px;">
       <h1 style="font-size: 2.5rem; font-weight: 700; background: linear-gradient(135deg, #ffffff 0%, #f0f0f0 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Proxy IP Checker</h1>
@@ -206,9 +213,22 @@ function generateMainHTML(token, faviconURL) {
          <h4>Successful IPs in Range:</h4>
          <div id="rangeResultSummary" style="margin-bottom: 10px;"></div>
          <div id="successfulRangeIPsList" style="margin-bottom: 10px; max-height: 200px; overflow-y: auto;"></div>
+         <div id="rangeResultChartContainer" style="width:100%; max-height:400px; margin: 15px auto; overflow-x: auto;">
+            <canvas id="rangeSuccessChart"></canvas>
+         </div>
          <button class="btn-secondary" id="copyRangeBtn" style="display:none; margin-top: 15px;">Copy Successful IPs</button>
       </div>
     </div>
+    
+    <div class="api-docs">
+       <h3 style="margin-bottom:10px;">API Documentation</h3>
+       <p><code>GET /api/check?proxyip=YOUR_PROXY_IP&token=YOUR_TOKEN</code></p>
+       <p><code>GET /api/ip-info?ip=TARGET_IP&token=YOUR_TOKEN</code></p>
+    </div>
+
+    <footer class="footer">
+      <p>© ${new Date().getFullYear()} Proxy IP Checker - By <strong>mehdi-hexing</strong></p>
+    </footer>
   </div>
 
   <div id="toast" class="toast"></div>
@@ -217,6 +237,7 @@ function generateMainHTML(token, faviconURL) {
     let isChecking = false;
     const TEMP_TOKEN = "${token}";
     let currentSuccessfulRangeIPs = [];
+    let rangeChartInstance = null;
 
     document.addEventListener('DOMContentLoaded', () => {
         const checkBtn = document.getElementById('checkBtn');
@@ -292,10 +313,15 @@ function generateMainHTML(token, faviconURL) {
         const rangeResultSummary = document.getElementById('rangeResultSummary');
         const successfulIPsListDiv = document.getElementById('successfulRangeIPsList');
         const copyRangeBtn = document.getElementById('copyRangeBtn');
+        const chartContainer = document.getElementById('rangeResultChartContainer');
 
         rangeResultCard.style.display = 'none';
         currentSuccessfulRangeIPs = [];
         let totalChecked = 0, totalSuccess = 0;
+        if (rangeChartInstance) {
+            rangeChartInstance.destroy();
+            rangeChartInstance = null;
+        }
 
         try {
             if (singleIpToTest) {
@@ -333,9 +359,15 @@ function generateMainHTML(token, faviconURL) {
                         await Promise.all(promises);
                         rangeResultSummary.innerHTML = 'Total Tested: ' + totalChecked + ' | Total Successful: ' + totalSuccess;
                         updateSuccessfulRangeIPsDisplay();
+                        updateRangeSuccessChart();
                     }
                 }
-                if(currentSuccessfulRangeIPs.length > 0) copyRangeBtn.style.display = 'block';
+                if(currentSuccessfulRangeIPs.length > 0) {
+                    copyRangeBtn.style.display = 'block';
+                    chartContainer.style.display = 'block';
+                } else {
+                    chartContainer.style.display = 'none';
+                }
             }
         } catch (error) {
             showToast(error.message);
@@ -357,6 +389,38 @@ function generateMainHTML(token, faviconURL) {
         });
         html += '</div>';
         listDiv.innerHTML = html;
+    }
+
+    function updateRangeSuccessChart() {
+        const successfulIPs = currentSuccessfulRangeIPs.map(item => item.ip);
+        const ctx = document.getElementById('rangeSuccessChart').getContext('2d');
+        if (rangeChartInstance) {
+            rangeChartInstance.destroy();
+        }
+        
+        rangeChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: successfulIPs,
+                datasets: [{
+                    label: 'Successful IP',
+                    data: successfulIPs.map(() => 1),
+                    backgroundColor: 'rgba(46, 204, 113, 0.6)', 
+                    borderColor: 'rgba(46, 204, 113, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { x: { display: false }, y: { ticks: { autoSkip: false } } },
+                plugins: { legend: { display: false } }
+            }
+        });
+        const canvas = document.getElementById('rangeSuccessChart');
+        canvas.style.height = (Math.max(5, successfulIPs.length) * 25) + 'px';
+        if(rangeChartInstance) rangeChartInstance.resize();
     }
 
     async function checkAndDisplaySingleIP(proxyip) {
@@ -418,4 +482,4 @@ function generateMainHTML(token, faviconURL) {
   </script>
 </body>
 </html>`;
-}
+      }
