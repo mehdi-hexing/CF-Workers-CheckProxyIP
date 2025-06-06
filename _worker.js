@@ -15,6 +15,28 @@ async function doubleHash(text) {
   return secondHex.toLowerCase();
 }
 
+async function resolveDomain(domain) {
+  domain = domain.includes(':') ? domain.split(':')[0] : domain;
+  try {
+    const [ipv4Response, ipv6Response] = await Promise.all([
+      fetch(`https://1.1.1.1/dns-query?name=${domain}&type=A`, { headers: { 'Accept': 'application/dns-json' } }),
+      fetch(`https://1.1.1.1/dns-query?name=${domain}&type=AAAA`, { headers: { 'Accept': 'application/dns-json' } })
+    ]);
+    const [ipv4Data, ipv6Data] = await Promise.all([ipv4Response.json(), ipv6Response.json()]);
+    const ips = [];
+    if (ipv4Data.Answer) {
+      ips.push(...ipv4Data.Answer.filter(r => r.type === 1).map(r => r.data));
+    }
+    if (ipv6Data.Answer) {
+      ips.push(...ipv6Data.Answer.filter(r => r.type === 28).map(r => `[${r.data}]`));
+    }
+    if (ips.length === 0) throw new Error('No A or AAAA records found');
+    return ips;
+  } catch (error) {
+    throw new Error(`DNS resolution failed: ${error.message}`);
+  }
+}
+
 async function checkProxyIP(proxyIPWithPort) {
   let portRemote = 443;
   let hostToCheck = proxyIPWithPort;
@@ -115,6 +137,17 @@ export default {
             });
         }
 
+        if (path.toLowerCase() === '/api/resolve') {
+            if (!url.searchParams.has('domain')) return new Response('Missing domain parameter', { status: 400 });
+            const domain = url.searchParams.get('domain');
+            try {
+                const ips = await resolveDomain(domain);
+                return new Response(JSON.stringify({ success: true, domain, ips }), { headers: { "Content-Type": "application/json" } });
+            } catch (error) {
+                return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: { "Content-Type": "application/json" } });
+            }
+        }
+        
         if (path.toLowerCase() === '/api/ip-info') {
             let ip = url.searchParams.get('ip') || request.headers.get('CF-Connecting-IP');
             if (!ip) return new Response('IP parameter not provided', { status: 400 });
@@ -224,17 +257,19 @@ function generateMainHTML(faviconURL) {
     .octo-arm{transform-origin:130px 106px}
     .github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}
     @keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}
+    
     .themeToggle {
         position: fixed;
         bottom: 25px;
         right: 25px;
         z-index: 1002;
-        color: var(--text-primary);
+        color: #efefef;
         width: 3em;
+        filter: drop-shadow(0 2px 3px rgba(0,0,0,0.2));
     }
     .st-sunMoonThemeToggleBtn { position: relative; cursor: pointer; }
     .st-sunMoonThemeToggleBtn .themeToggleInput { opacity: 0; position: absolute; width: 100%; height: 100%;}
-    .st-sunMoonThemeToggleBtn svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transition: transform 0.4s ease; transform: rotate(40deg); fill: var(--text-primary); }
+    .st-sunMoonThemeToggleBtn svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transition: transform 0.4s ease; transform: rotate(40deg); }
     .st-sunMoonThemeToggleBtn svg .sunMoon { transform-origin: center center; transition: inherit; transform: scale(1); }
     .st-sunMoonThemeToggleBtn svg .sunRay { transform-origin: center center; transform: scale(0); }
     .st-sunMoonThemeToggleBtn svg mask > circle { transition: transform 0.64s cubic-bezier(0.41, 0.64, 0.32, 1.575); transform: translate(0px, 0px); }
@@ -284,6 +319,7 @@ function generateMainHTML(faviconURL) {
     <div class="api-docs">
        <h3 style="margin-bottom:15px; text-align:center;">API Documentation</h3>
        <p><code>GET /api/check?proxyip=YOUR_IP&token=YOUR_TOKEN</code></p>
+       <p><code>GET /api/resolve?domain=YOUR_DOMAIN&token=YOUR_TOKEN</code></p>
        <p><code>GET /api/ip-info?ip=TARGET_IP&token=YOUR_TOKEN</code></p>
     </div>
     <footer class="footer">
@@ -293,7 +329,7 @@ function generateMainHTML(faviconURL) {
   <div id="toast" class="toast"></div>
   <label for="themeToggle" class="themeToggle st-sunMoonThemeToggleBtn">
     <input type="checkbox" id="themeToggle" class="themeToggleInput" />
-    <svg width="18" height="18" viewBox="0 0 20 20" stroke="none">
+    <svg width="18" height="18" viewBox="0 0 20 20" stroke="none" fill="currentColor">
       <mask id="moon-mask">
         <rect x="0" y="0" width="20" height="20" fill="white"></rect>
         <circle cx="11" cy="3" r="8" fill="black"></circle>
@@ -388,9 +424,10 @@ function generateMainHTML(faviconURL) {
         if (!TEMP_TOKEN) {
              showToast("Session not ready. Retrying...");
              await new Promise(resolve => setTimeout(resolve, 500));
-             if (!TEMP_TOKEN) { // Try one last time
-                throw new Error("Could not retrieve session token.");
+             if (!TEMP_TOKEN) {
+                await fetch('/api/get-token').then(res => res.json()).then(data => { TEMP_TOKEN = data.token; });
              }
+             if (!TEMP_TOKEN) throw new Error("Could not retrieve session token.");
         }
         params.append('token', TEMP_TOKEN);
         const response = await fetch(path + '?' + params.toString());
@@ -402,7 +439,7 @@ function generateMainHTML(faviconURL) {
 
     async function checkInputs() {
         if (isChecking) return;
-
+        
         const singleIpInputEl = document.getElementById('proxyip');
         const rangeIpTextareaEl = document.getElementById('proxyipRangeRows');
         const singleIpToTest = singleIpInputEl.value.trim();
@@ -550,4 +587,4 @@ function generateMainHTML(faviconURL) {
   </script>
 </body>
 </html>`;
-              }
+  }
