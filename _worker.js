@@ -2,6 +2,8 @@ import { connect } from "cloudflare:sockets";
 
 let temporaryTOKEN, permanentTOKEN;
 
+// --- Helper Functions (Server-Side) ---
+
 async function doubleHash(text) {
   const encoder = new TextEncoder();
   const firstHashBuffer = await crypto.subtle.digest('MD5', encoder.encode(text));
@@ -11,6 +13,28 @@ async function doubleHash(text) {
   const secondHashArray = Array.from(new Uint8Array(secondHashBuffer));
   const secondHex = secondHashArray.map(byte => byte.toString(16).padStart(2, '0')).join('');
   return secondHex.toLowerCase();
+}
+
+async function resolveDomain(domain) {
+  domain = domain.includes(':') ? domain.split(':')[0] : domain;
+  try {
+    const [ipv4Response, ipv6Response] = await Promise.all([
+      fetch(`https://1.1.1.1/dns-query?name=${domain}&type=A`, { headers: { 'Accept': 'application/dns-json' } }),
+      fetch(`https://1.1.1.1/dns-query?name=${domain}&type=AAAA`, { headers: { 'Accept': 'application/dns-json' } })
+    ]);
+    const [ipv4Data, ipv6Data] = await Promise.all([ipv4Response.json(), ipv6Response.json()]);
+    const ips = [];
+    if (ipv4Data.Answer) {
+      ips.push(...ipv4Data.Answer.filter(r => r.type === 1).map(r => r.data));
+    }
+    if (ipv6Data.Answer) {
+      ips.push(...ipv6Data.Answer.filter(r => r.type === 28).map(r => `[${r.data}]`));
+    }
+    if (ips.length === 0) throw new Error('No A or AAAA records found');
+    return ips;
+  } catch (error) {
+    throw new Error(`DNS resolution failed: ${error.message}`);
+  }
 }
 
 async function checkProxyIP(proxyIPWithPort) {
@@ -86,37 +110,48 @@ export default {
     permanentTOKEN = env.TOKEN || temporaryTOKEN;
     
     if (path.toLowerCase().startsWith('/api/')) {
-        const isTokenValid = () => {
-            if (!env.TOKEN) return true;
-            const providedToken = url.searchParams.get('token');
-            return providedToken === permanentTOKEN || providedToken === temporaryTOKEN;
-        };
+      const isTokenValid = () => {
+        if (!env.TOKEN) return true;
+        const providedToken = url.searchParams.get('token');
+        return providedToken === permanentTOKEN || providedToken === temporaryTOKEN;
+      };
 
-        if (!isTokenValid()) {
-            return new Response(JSON.stringify({ status: "error", message: "Invalid TOKEN" }), {
-                status: 403, headers: { "Content-Type": "application/json" }
-            });
-        }
+      if (!isTokenValid()) {
+        return new Response(JSON.stringify({ status: "error", message: "Invalid TOKEN" }), {
+          status: 403, headers: { "Content-Type": "application/json" }
+        });
+      }
 
-        if (path.toLowerCase() === '/api/check') {
-            if (!url.searchParams.has('proxyip')) return new Response('Missing proxyip parameter', { status: 400 });
-            const proxyIPInput = url.searchParams.get('proxyip');
-            const result = await checkProxyIP(proxyIPInput);
-            return new Response(JSON.stringify(result), {
-                status: result.success ? 200 : 502, headers: { "Content-Type": "application/json" }
-            });
-        }
+      if (path.toLowerCase() === '/api/check') {
+        if (!url.searchParams.has('proxyip')) return new Response('Missing proxyip parameter', { status: 400 });
+        const proxyIPInput = url.searchParams.get('proxyip');
+        const result = await checkProxyIP(proxyIPInput);
+        return new Response(JSON.stringify(result), {
+          status: result.success ? 200 : 502, headers: { "Content-Type": "application/json" }
+        });
+      }
 
-        if (path.toLowerCase() === '/api/ip-info') {
-            let ip = url.searchParams.get('ip') || request.headers.get('CF-Connecting-IP');
-            if (!ip) return new Response('IP parameter not provided', { status: 400 });
-            if (ip.includes('[')) ip = ip.replace(/\[|\]/g, '');
-            const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,message,query,country,countryCode,as&lang=en`);
-            const data = await response.json();
-            return new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } });
+      if (path.toLowerCase() === '/api/resolve') {
+        if (!url.searchParams.has('domain')) return new Response('Missing domain parameter', { status: 400 });
+        const domain = url.searchParams.get('domain');
+        try {
+            const ips = await resolveDomain(domain);
+            return new Response(JSON.stringify({ success: true, domain, ips }), { headers: { "Content-Type": "application/json" } });
+        } catch (error) {
+            return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: { "Content-Type": "application/json" } });
         }
-        
-        return new Response('API route not found', { status: 404 });
+      }
+
+      if (path.toLowerCase() === '/api/ip-info') {
+        let ip = url.searchParams.get('ip') || request.headers.get('CF-Connecting-IP');
+        if (!ip) return new Response('IP parameter not provided', { status: 400 });
+        if (ip.includes('[')) ip = ip.replace(/\[|\]/g, '');
+        const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,message,query,country,countryCode,as&lang=en`);
+        const data = await response.json();
+        return new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } });
+      }
+      
+      return new Response('API route not found', { status: 404 });
     }
     
     const faviconURL = env.ICO || 'https://cf-assets.www.cloudflare.com/dzlvafdwdttg/19kSkLSfWtDcspvQI5pit4/c5630cf25d589a0de91978ca29486259/performance-acceleration-bolt.svg';
@@ -154,12 +189,13 @@ function generateMainHTML(token, faviconURL) {
     .container { max-width: 800px; width: 100%; }
     .card { background: var(--bg-primary); border-radius: var(--border-radius); padding: 25px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); margin-bottom: 25px; }
     .form-section { display: flex; flex-direction: column; align-items: center; }
-    .form-label { display: block; font-weight: 500; margin-bottom: 8px; color: var(--text-primary); width: 100%; max-width: 400px; text-align: left;}
-    .input-wrapper { width: 100%; max-width: 400px; margin-bottom: 15px; }
+    .form-label { display: block; font-weight: 500; margin-bottom: 8px; color: var(--text-primary); width: 100%; max-width: 450px; text-align: left;}
+    .input-wrapper { width: 100%; max-width: 450px; margin-bottom: 15px; }
     .form-input { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.95rem; box-sizing: border-box; }
     textarea.form-input { min-height: 60px; resize: vertical; }
-    .btn-primary { background: linear-gradient(135deg, var(--primary-color), var(--primary-dark)); color: white; padding: 12px 25px; border: none; border-radius: var(--border-radius-sm); font-size: 1rem; font-weight: 500; cursor: pointer; width: 100%; max-width: 400px; box-sizing: border-box; }
+    .btn-primary { background: linear-gradient(135deg, var(--primary-color), var(--primary-dark)); color: white; padding: 12px 25px; border: none; border-radius: var(--border-radius-sm); font-size: 1rem; font-weight: 500; cursor: pointer; width: 100%; max-width: 450px; box-sizing: border-box; }
     .btn-primary:disabled { background: #bdc3c7; cursor: not-allowed; }
+    .btn-secondary { background-color: var(--bg-secondary); color: var(--text-primary); padding: 8px 15px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.9rem; cursor: pointer; }
     .loading-spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 1s linear infinite; display: none; margin-left: 8px; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .result-section { margin-top: 25px; }
@@ -167,13 +203,14 @@ function generateMainHTML(token, faviconURL) {
     .result-success { background-color: #d4edda; border-left: 4px solid var(--success-color); color: #155724; }
     .result-error { background-color: #f8d7da; border-left: 4px solid var(--error-color); color: #721c24; }
     .copy-btn { background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 4px 8px; border-radius: 4px; font-size: 0.85em; cursor: pointer; margin-left: 8px;}
-    .toast { position: fixed; bottom: 20px; right: 20px; background: #333; color: white; padding: 12px 20px; border-radius:var(--border-radius-sm); z-index:1000; opacity:0; transition: opacity 0.3s; box-sizing: border-box;}
+    .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 12px 20px; border-radius:var(--border-radius-sm); z-index:1000; opacity:0; transition: opacity 0.3s; box-sizing: border-box;}
     .toast.show { opacity:1; }
     #successfulRangeIPsList { border: 1px solid var(--border-color); padding: 10px; border-radius: var(--border-radius-sm); }
     .ip-item { padding:8px 5px; border-bottom:1px solid #f0f0f0; display:flex; justify-content:space-between; align-items:center; }
     #successfulRangeIPsList .ip-item:last-child { border-bottom: none; }
     .api-docs { margin-top: 30px; padding: 25px; background: var(--bg-primary); border-radius: var(--border-radius); }
-    .api-docs p code { display: inline-block; background-color: #f0f0f0; padding: 2px 5px; border-radius: 4px; font-family: monospace; }
+    .api-docs p { background-color: #f7f7f9; border: 1px solid #e1e1e8; padding: 10px; border-radius: 4px; margin-bottom: 10px; word-break: break-all; }
+    .api-docs p code { background: none; padding: 0;}
     .footer { text-align: center; padding: 20px; margin-top: 30px; color: rgba(255,255,255,0.8); font-size: 0.85em; border-top: 1px solid rgba(255,255,255,0.1); }
     .github-corner svg { fill: #fff; color: var(--primary-color); position: fixed; top: 0; border: 0; right: 0; z-index: 1001;}
     .octo-arm{transform-origin:130px 106px}
@@ -197,7 +234,7 @@ function generateMainHTML(token, faviconURL) {
         
         <label for="proxyipRangeRows" class="form-label">Enter IP Range(s) (one per line):</label>
         <div class="input-wrapper">
-          <textarea id="proxyipRangeRows" class="form-input" rows="3" placeholder="e.g., 1.2.3.0/24\\n1.2.4.1-10" autocomplete="off"></textarea>
+          <textarea id="proxyipRangeRows" class="form-input" rows="3" placeholder="1.2.3.0/24\\n1.2.3.1-255" autocomplete="off"></textarea>
         </div>
 
         <button id="checkBtn" class="btn-primary">
@@ -211,9 +248,9 @@ function generateMainHTML(token, faviconURL) {
       <div id="result" class="result-section"></div>
       <div id="rangeResultCard" class="result-card result-section" style="display:none;">
          <h4>Successful IPs in Range:</h4>
-         <div id="rangeResultSummary" style="margin-bottom: 10px;"></div>
-         <div id="successfulRangeIPsList" style="margin-bottom: 10px; max-height: 200px; overflow-y: auto;"></div>
-         <div id="rangeResultChartContainer" style="width:100%; max-height:400px; margin: 15px auto; overflow-x: auto;">
+         <div id="rangeResultSummary" style="margin-bottom: 15px;"></div>
+         <div id="successfulRangeIPsList" style="margin-bottom: 15px; max-height: 200px; overflow-y: auto;"></div>
+         <div id="rangeResultChartContainer" style="width:100%; max-height:400px; margin: 15px auto; overflow-x: auto; display:none;">
             <canvas id="rangeSuccessChart"></canvas>
          </div>
          <button class="btn-secondary" id="copyRangeBtn" style="display:none; margin-top: 15px;">Copy Successful IPs</button>
@@ -221,8 +258,9 @@ function generateMainHTML(token, faviconURL) {
     </div>
     
     <div class="api-docs">
-       <h3 style="margin-bottom:10px;">API Documentation</h3>
-       <p><code>GET /api/check?proxyip=YOUR_PROXY_IP&token=YOUR_TOKEN</code></p>
+       <h3 style="margin-bottom:15px; text-align:center;">API Documentation</h3>
+       <p><code>GET /api/check?proxyip=YOUR_IP&token=YOUR_TOKEN</code></p>
+       <p><code>GET /api/resolve?domain=YOUR_DOMAIN&token=YOUR_TOKEN</code></p>
        <p><code>GET /api/ip-info?ip=TARGET_IP&token=YOUR_TOKEN</code></p>
     </div>
 
@@ -240,8 +278,7 @@ function generateMainHTML(token, faviconURL) {
     let rangeChartInstance = null;
 
     document.addEventListener('DOMContentLoaded', () => {
-        const checkBtn = document.getElementById('checkBtn');
-        checkBtn.addEventListener('click', checkInputs);
+        document.getElementById('checkBtn').addEventListener('click', checkInputs);
         
         document.getElementById('copyRangeBtn').addEventListener('click', () => {
             if (currentSuccessfulRangeIPs.length > 0) {
@@ -363,7 +400,7 @@ function generateMainHTML(token, faviconURL) {
                     }
                 }
                 if(currentSuccessfulRangeIPs.length > 0) {
-                    copyRangeBtn.style.display = 'block';
+                    copyRangeBtn.style.display = 'inline-block';
                     chartContainer.style.display = 'block';
                 } else {
                     chartContainer.style.display = 'none';
@@ -482,4 +519,4 @@ function generateMainHTML(token, faviconURL) {
   </script>
 </body>
 </html>`;
-      }
+                                  }
