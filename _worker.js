@@ -574,26 +574,32 @@ async function generateMainHTML(hostname, faviconURL, token) {
     function createCopyButton(text) { return \\\`<span class="copy-btn" data-copy="\${text}">\${text}</span>\\\`; }
 
     function isValidProxyIPFormat(input) {
-        const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9\\\\-]{0,61}[a-zA-Z0-9])?(\\\\.[a-zA-Z0-9]([a-zA-Z0-9\\\\-]{0,61}[a-zA-Z0-9])?)*$/;
-        const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-        const ipv6Regex = /^\\\\[?([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}\\\\]?$/;
-        const withPortRegex = /^.+:\\\\d+$/;
-        const tpPortRegex = /^.+\\\\.tp\\\\d+\\\\. /;
-        return domainRegex.test(input) || ipv4Regex.test(input) || ipv6Regex.test(input) || withPortRegex.test(input) || tpPortRegex.test(input);
+        const domainPattern = "^[a-zA-Z0-9]([a-zA-Z0-9\\\\-]{0,61}[a-zA-Z0-9])?(\\\\.[a-zA-Z0-9]([a-zA-Z0-9\\\\-]{0,61}[a-zA-Z0-9])?)*$";
+        const ipv4Pattern = "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$";
+        const ipv6Pattern = "^\\\\[?([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}\\\\]?$";
+        const withPortPattern = "^.+:\\\\d+$";
+        const tpPortPattern = "^.+\\\\.tp\\\\d+\\\\.";
+
+        return new RegExp(domainPattern).test(input) || new RegExp(ipv4Pattern).test(input) || new RegExp(ipv6Pattern).test(input) || new RegExp(withPortPattern).test(input) || new RegExp(tpPortPattern).test(input);
     }
 
-     function isIPAddress(input) {
-      const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-      const ipv6Regex = /^\\\\[?([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}\\\\]?$/;
-      const ipv6WithPortRegex = /^\\\\[[0-9a-fA-F:]+\\\\]:\\\\d+$/;
-      const ipv4WithPortRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?):\\\\d+$/;
-      return ipv4Regex.test(input) || ipv6Regex.test(input) || ipv6WithPortRegex.test(input) || ipv4WithPortRegex.test(input);
+    function isIPAddress(input) {
+      const ipv4Pattern = "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$";
+      const ipv6Pattern = "^\\\\[?([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}\\\\]?$";
+      const ipv6WithPortPattern = "^\\\\[[0-9a-fA-F:]+\\\\]:\\\\d+$";
+      const ipv4WithPortPattern = "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?):\\\\d+$";
+      
+      return new RegExp(ipv4Pattern).test(input) || new RegExp(ipv6Pattern).test(input) || new RegExp(ipv6WithPortPattern).test(input) || new RegExp(ipv4WithPortPattern).test(input);
     }
 
     function parseIPRange(rangeInput) {
         const ips = [];
         rangeInput = rangeInput.trim();
-        if (/^(\\\\d{1,3}\\\\.){3}\\\\d{1,3}\\\\/24$/.test(rangeInput)) {
+        
+        const cidrPattern = new RegExp(/^(\\d{1,3}\.\\d{1,3}\.\\d{1,3}\.\\d{1,3})\\/24$/);
+        const simpleRangePattern = new RegExp(/^(\\d{1,3}\.\\d{1,3}\.\\d{1,3}\.)(\\d{1,3})-(\\d{1,3})$/);
+
+        if (cidrPattern.test(rangeInput)) {
             const baseIp = rangeInput.split('/')[0];
             const baseParts = baseIp.split('.');
             if (baseParts.length === 4 ) {
@@ -604,24 +610,18 @@ async function generateMainHTML(hostname, faviconURL, token) {
                  showToast('Invalid CIDR format. Expected x.x.x.0/24.');
             }
         } 
-        else if (/^(\\\\d{1,3}\\\\.){3}\\\\d{1,3}-\\\\d{1,3}$/.test(rangeInput)) {
-            const parts = rangeInput.split('-');
-            const baseIpWithLastOctet = parts[0];
-            const endOctet = parseInt(parts[1]);
-            
-            const ipParts = baseIpWithLastOctet.split('.');
-            if (ipParts.length === 4) {
-                const startOctet = parseInt(ipParts[3]);
-                const prefix = \\\`\${ipParts[0]}.\${ipParts[1]}.\${ipParts[2]}\\\`;
-                if (!isNaN(startOctet) && !isNaN(endOctet) && startOctet <= endOctet && startOctet >= 0 && endOctet <= 255) {
-                    for (let i = startOctet; i <= endOctet; i++) {
-                        ips.push(\\\`\${prefix}.\${i}\\\`);
-                    }
-                } else {
-                    showToast('Invalid range in x.x.x.A-B format.');
+        else if (simpleRangePattern.test(rangeInput)) {
+            const match = rangeInput.match(simpleRangePattern);
+            const prefix = match[1];
+            const startOctet = parseInt(match[2]);
+            const endOctet = parseInt(match[3]);
+
+            if (!isNaN(startOctet) && !isNaN(endOctet) && startOctet <= endOctet && startOctet >= 0 && endOctet <= 255) {
+                for (let i = startOctet; i <= endOctet; i++) {
+                    ips.push(\\\`\${prefix}\${i}\\\`);
                 }
             } else {
-                 showToast('Invalid x.x.x.A-B range format.');
+                showToast('Invalid range in x.x.x.A-B format.');
             }
         }
         return ips;
@@ -1073,4 +1073,4 @@ async function generateMainHTML(hostname, faviconURL, token) {
   return new Response(html, {
     headers: { "content-type": "text/html;charset=UTF-8" }
   });
-              }
+                                                }
