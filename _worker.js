@@ -170,15 +170,23 @@ function generateMainHTML(token, faviconURL) {
       --text-light: #95a5a6;
       --border-color: #465b71;
     }
+    html {
+        height: 100%;
+    }
     body { 
       font-family: 'Inter', sans-serif; 
       background: var(--bg-gradient);
       color: var(--text-primary);
-      line-height: 1.6; margin:0; padding:20px; min-height: 100vh; 
-      display: flex; flex-direction: column; align-items: center; box-sizing: border-box;
+      line-height: 1.6; margin:0; padding:0; min-height: 100%; 
+      display: flex; flex-direction: column; align-items: center;
       transition: background 0.3s ease, color 0.3s ease;
     }
-    .container { max-width: 800px; width: 100%; }
+    .container { 
+        max-width: 800px; 
+        width: 100%;
+        padding: 20px;
+        box-sizing: border-box;
+    }
     .header { text-align: center; margin-bottom: 30px; }
     .main-title { font-size: 2.2rem; font-weight: 700; color: #fff; text-shadow: 1px 1px 3px rgba(0,0,0,0.2); }
     .card { background: var(--bg-primary); border-radius: var(--border-radius); padding: 25px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); margin-bottom: 25px; transition: background 0.3s ease; }
@@ -226,12 +234,14 @@ function generateMainHTML(token, faviconURL) {
     }
     .st-sunMoonThemeToggleBtn .themeToggleInput {
         opacity: 0;
+        position: absolute;
         width: 100%;
-        aspect-ratio: 1;
+        height: 100%;
     }
     .st-sunMoonThemeToggleBtn svg {
         position: absolute;
         left: 0;
+        top: 0;
         width: 100%;
         height: 100%;
         transition: transform 0.4s ease;
@@ -305,6 +315,7 @@ function generateMainHTML(token, faviconURL) {
     <div class="api-docs">
        <h3 style="margin-bottom:15px; text-align:center;">API Documentation</h3>
        <p><code>GET /api/check?proxyip=YOUR_IP&token=YOUR_TOKEN</code></p>
+       <p><code>GET /api/resolve?domain=YOUR_DOMAIN&token=YOUR_TOKEN</code></p>
        <p><code>GET /api/ip-info?ip=TARGET_IP&token=YOUR_TOKEN</code></p>
     </div>
 
@@ -570,4 +581,4 @@ function generateMainHTML(token, faviconURL) {
   </script>
 </body>
 </html>`;
-  }
+              }
