@@ -136,7 +136,7 @@ export default {
                 status: result.success ? 200 : 502, headers: { "Content-Type": "application/json" }
             });
         }
-
+        
         if (path.toLowerCase() === '/api/resolve') {
             if (!url.searchParams.has('domain')) return new Response('Missing domain parameter', { status: 400 });
             const domain = url.searchParams.get('domain');
@@ -147,7 +147,7 @@ export default {
                 return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: { "Content-Type": "application/json" } });
             }
         }
-        
+
         if (path.toLowerCase() === '/api/ip-info') {
             let ip = url.searchParams.get('ip') || request.headers.get('CF-Connecting-IP');
             if (!ip) return new Response('IP parameter not provided', { status: 400 });
@@ -261,6 +261,10 @@ function generateMainHTML(faviconURL) {
     #successfulRangeIPsList, .domain-ip-list { border: 1px solid var(--border-color); padding: 10px; border-radius: var(--border-radius-sm); max-height: 250px; overflow-y: auto;}
     .ip-item { padding:8px 5px; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; }
     #successfulRangeIPsList .ip-item:last-child, .domain-ip-list .ip-item:last-child { border-bottom: none; }
+    .api-docs { margin-top: 30px; padding: 25px; background: var(--bg-primary); border-radius: var(--border-radius); transition: background 0.3s ease; }
+    .api-docs p { background-color: var(--bg-secondary); border: 1px solid var(--border-color); padding: 10px; border-radius: 4px; margin-bottom: 10px; word-break: break-all; transition: background 0.3s ease, border-color 0.3s ease;}
+    .api-docs p code { background: none; padding: 0;}
+    .footer { text-align: center; padding: 20px; margin-top: 30px; color: rgba(255,255,255,0.8); font-size: 0.85em; border-top: 1px solid rgba(255,255,255,0.1); }
     .github-corner svg { fill: var(--primary-color); color: #fff; position: fixed; top: 0; border: 0; right: 0; z-index: 1000;}
     body.dark-mode .github-corner svg { fill: #fff; color: #151513; }
     .octo-arm{transform-origin:130px 106px}
@@ -289,6 +293,7 @@ function generateMainHTML(faviconURL) {
       width: 24px;
       height: 24px;
       stroke: var(--text-primary);
+      fill: var(--text-primary);
       transition: all 0.3s ease;
     }
     body:not(.dark-mode) #theme-toggle .sun-icon { display: none; }
@@ -340,7 +345,7 @@ function generateMainHTML(faviconURL) {
   </div>
   <div id="toast" class="toast"></div>
   <button id="theme-toggle" aria-label="Toggle Theme">
-    <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="12" r="5"></circle>
       <line x1="12" y1="1" x2="12" y2="3"></line>
       <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -351,7 +356,7 @@ function generateMainHTML(faviconURL) {
       <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
       <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
     </svg>
-    <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round">
+    <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round">
       <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
     </svg>
   </button>
@@ -551,7 +556,7 @@ function generateMainHTML(faviconURL) {
       const country = ipInfo.country || 'N/A';
       const as = ipInfo.as || 'N/A';
       if (isShort) return ' (' + country + ' - ' + as.substring(0, 15) + '...)';
-      return '<span style="font-size:0.85em; color: var(--text-primary);">' + country + ' - ' + as + '</span>';
+      return '<span style="font-size:0.85em; color: var(--text-light);">' + country + ' - ' + as + '</span>';
     }
 
     async function getIPInfoWithIndex(ip, index) {
@@ -592,7 +597,7 @@ function generateMainHTML(faviconURL) {
                 resultDiv.innerHTML =
                     '<div class="result-card result-success">' +
                         '<h3>✅ ProxyIP Valid</h3>' +
-                        '<p><strong>📍 IP Address:</strong> <span class="copy-btn" data-copy="' + data.proxyIP + '">' + data.proxyIP + '</span></p>' +
+                        '<p><strong>📍 IP Address:</strong> ' + createCopyButton(data.proxyIP) + '</p>' +
                         ipInfoHTML +
                         '<p><strong>🔌 Port:</strong> ' + data.portRemote + '</p>' +
                         '<p><strong>🕒 Check Time:</strong> ' + new Date(data.timestamp).toLocaleString() + '</p>' +
@@ -601,7 +606,7 @@ function generateMainHTML(faviconURL) {
                  resultDiv.innerHTML =
                     '<div class="result-card result-error">' +
                         '<h3>❌ ProxyIP Invalid</h3>' +
-                        '<p><strong>📍 IP Address:</strong> ' + proxyip + '</p>' +
+                        '<p><strong>📍 IP Address:</strong> ' + createCopyButton(proxyip) + '</p>' +
                         '<p><strong>Error:</strong> ' + (data.error || 'Check failed.') + '</p>' +
                         '<p><strong>🕒 Check Time:</strong> ' + new Date(data.timestamp).toLocaleString() + '</p>' +
                     '</div>';
@@ -635,13 +640,13 @@ function generateMainHTML(faviconURL) {
             
             let html = '<div class="result-card result-warning">' +
                 '<h3 id="domain-result-header">🔍 Resolving & Checking Domain...</h3>' +
-                '<p><strong>🌐 Domain:</strong> <span class="copy-btn" data-copy="' + domain + '">' + domain + '</span></p>' +
+                '<p><strong>🌐 Domain:</strong> ' + createCopyButton(domain) + '</p>' +
                 '<p><strong>🔌 Default Port for Test:</strong> ' + port + '</p>' +
                 '<p><strong>📋 IPs Found:</strong> ' + ips.length + '</p>' +
                 '<div class="domain-ip-list">';
             ips.forEach((ip, index) => {
                 html += '<div class="ip-item" id="domain-ip-item-' + index + '">' +
-                        '<div><span class="copy-btn" data-copy="' + ip + '">' + ip + '</span><span id="domain-ip-info-' + index + '"></span></div>' +
+                        '<div>' + createCopyButton(ip) + '<span id="domain-ip-info-' + index + '"></span></div>' +
                         '<span id="domain-ip-status-' + index + '">🔄</span>' +
                         '</div>';
             });
@@ -696,4 +701,4 @@ function generateMainHTML(faviconURL) {
   </script>
 </body>
 </html>`;
-}
+                                                                 }
