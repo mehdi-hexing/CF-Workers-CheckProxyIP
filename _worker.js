@@ -15,28 +15,6 @@ async function doubleHash(text) {
   return secondHex.toLowerCase();
 }
 
-async function resolveDomain(domain) {
-  domain = domain.includes(':') ? domain.split(':')[0] : domain;
-  try {
-    const [ipv4Response, ipv6Response] = await Promise.all([
-      fetch(`https://1.1.1.1/dns-query?name=${domain}&type=A`, { headers: { 'Accept': 'application/dns-json' } }),
-      fetch(`https://1.1.1.1/dns-query?name=${domain}&type=AAAA`, { headers: { 'Accept': 'application/dns-json' } })
-    ]);
-    const [ipv4Data, ipv6Data] = await Promise.all([ipv4Response.json(), ipv6Response.json()]);
-    const ips = [];
-    if (ipv4Data.Answer) {
-      ips.push(...ipv4Data.Answer.filter(r => r.type === 1).map(r => r.data));
-    }
-    if (ipv6Data.Answer) {
-      ips.push(...ipv6Data.Answer.filter(r => r.type === 28).map(r => `[${r.data}]`));
-    }
-    if (ips.length === 0) throw new Error('No A or AAAA records found');
-    return ips;
-  } catch (error) {
-    throw new Error(`DNS resolution failed: ${error.message}`);
-  }
-}
-
 async function checkProxyIP(proxyIPWithPort) {
   let portRemote = 443;
   let hostToCheck = proxyIPWithPort;
@@ -133,17 +111,6 @@ export default {
             });
         }
 
-        if (path.toLowerCase() === '/api/resolve') {
-            if (!url.searchParams.has('domain')) return new Response('Missing domain parameter', { status: 400 });
-            const domain = url.searchParams.get('domain');
-            try {
-                const ips = await resolveDomain(domain);
-                return new Response(JSON.stringify({ success: true, domain, ips }), { headers: { "Content-Type": "application/json" } });
-            } catch (error) {
-                return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: { "Content-Type": "application/json" } });
-            }
-        }
-        
         if (path.toLowerCase() === '/api/ip-info') {
             let ip = url.searchParams.get('ip') || request.headers.get('CF-Connecting-IP');
             if (!ip) return new Response('IP parameter not provided', { status: 400 });
@@ -244,34 +211,59 @@ function generateMainHTML(token, faviconURL) {
     .octo-arm{transform-origin:130px 106px}
     .github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}
     @keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}
-    #theme-toggle {
+    
+    .themeToggle {
         position: fixed;
         bottom: 25px;
         right: 25px;
-        background: var(--bg-primary);
-        border: 1px solid var(--border-color);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-        border-radius: 50%;
-        width: 50px;
-        height: 50px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0;
         z-index: 1002;
-        transition: background 0.3s ease, border-color 0.3s ease;
+        color: var(--text-primary);
+        width: 3em;
     }
-    #theme-toggle svg {
-        width: 24px;
-        height: 24px;
+    .st-sunMoonThemeToggleBtn {
+        position: relative;
+        cursor: pointer;
+    }
+    .st-sunMoonThemeToggleBtn .themeToggleInput {
+        opacity: 0;
+        width: 100%;
+        aspect-ratio: 1;
+    }
+    .st-sunMoonThemeToggleBtn svg {
+        position: absolute;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        transition: transform 0.4s ease;
+        transform: rotate(40deg);
         fill: var(--text-primary);
-        transition: fill 0.3s ease;
     }
-    .dark-mode #theme-toggle .sun-icon { display: block; }
-    .dark-mode #theme-toggle .moon-icon { display: none; }
-    #theme-toggle .sun-icon { display: none; }
-    #theme-toggle .moon-icon { display: block; }
+    .st-sunMoonThemeToggleBtn svg .sunMoon {
+        transform-origin: center center;
+        transition: inherit;
+        transform: scale(1);
+    }
+    .st-sunMoonThemeToggleBtn svg .sunRay {
+        transform-origin: center center;
+        transform: scale(0);
+    }
+    .st-sunMoonThemeToggleBtn svg mask > circle {
+        transition: transform 0.64s cubic-bezier(0.41, 0.64, 0.32, 1.575);
+        transform: translate(0px, 0px);
+    }
+    .st-sunMoonThemeToggleBtn svg .sunRay2 { animation-delay: 0.05s !important; }
+    .st-sunMoonThemeToggleBtn svg .sunRay3 { animation-delay: 0.1s !important; }
+    .st-sunMoonThemeToggleBtn svg .sunRay4 { animation-delay: 0.17s !important; }
+    .st-sunMoonThemeToggleBtn svg .sunRay5 { animation-delay: 0.25s !important; }
+    .st-sunMoonThemeToggleBtn svg .sunRay6 { animation-delay: 0.29s !important; }
+    .st-sunMoonThemeToggleBtn .themeToggleInput:checked + svg { transform: rotate(90deg); }
+    .st-sunMoonThemeToggleBtn .themeToggleInput:checked + svg mask > circle { transform: translate(16px, -3px); }
+    .st-sunMoonThemeToggleBtn .themeToggleInput:checked + svg .sunMoon { transform: scale(0.55); }
+    .st-sunMoonThemeToggleBtn .themeToggleInput:checked + svg .sunRay { animation: showRay1832 0.4s ease 0s 1 forwards; }
+    @keyframes showRay1832 {
+        0% { transform: scale(0); }
+        100% { transform: scale(1); }
+    }
   </style>
 </head>
 <body>
@@ -290,7 +282,7 @@ function generateMainHTML(token, faviconURL) {
         
         <label for="proxyipRangeRows" class="form-label">Enter IP Range(s) (one per line):</label>
         <div class="input-wrapper">
-          <textarea id="proxyipRangeRows" class="form-input" rows="3" placeholder="127.0.0.0/24 or 127.0.0.0-255"autocomplete="off"></textarea>
+          <textarea id="proxyipRangeRows" class="form-input" rows="3" placeholder="127.0.0.0/24 or 127.0.0.0-255" autocomplete="off"></textarea>
         </div>
 
         <button id="checkBtn" class="btn-primary">
@@ -313,7 +305,6 @@ function generateMainHTML(token, faviconURL) {
     <div class="api-docs">
        <h3 style="margin-bottom:15px; text-align:center;">API Documentation</h3>
        <p><code>GET /api/check?proxyip=YOUR_IP&token=YOUR_TOKEN</code></p>
-       <p><code>GET /api/resolve?domain=YOUR_DOMAIN&token=YOUR_TOKEN</code></p>
        <p><code>GET /api/ip-info?ip=TARGET_IP&token=YOUR_TOKEN</code></p>
     </div>
 
@@ -323,10 +314,24 @@ function generateMainHTML(token, faviconURL) {
   </div>
 
   <div id="toast" class="toast"></div>
-  <button id="theme-toggle" aria-label="Toggle theme">
-    <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 11.807A9.002 9.002 0 0 1 10.049 2.5a9.948 9.948 0 0 0-5.12 3.16A9.923 9.923 0 0 0 2.5 10.951a9.926 9.926 0 0 0 3.16 5.235 9.947 9.947 0 0 0 5.234 3.16 9.924 9.924 0 0 0 5.305-2.488A9.002 9.002 0 0 1 12 11.807z"></path></svg>
-    <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18a6 6 0 1 1 6-6 6.007 6.007 0 0 1-6 6zm0-10a4 4 0 1 0 4 4 4.005 4.005 0 0 0-4-4zm0-5a1 1 0 0 1 1 1v2a1 1 0 0 1-2 0V4a1 1 0 0 1 1-1zm0 18a1 1 0 0 1-1-1v-2a1 1 0 0 1 2 0v2a1 1 0 0 1-1 1zM5.636 6.636a1 1 0 0 1 .707-.293 1 1 0 0 1 .707 1.707l-1.414 1.414a1 1 0 1 1-1.414-1.414zM18.364 19.364a1 1 0 0 1-.707.293 1 1 0 0 1-.707-1.707l1.414-1.414a1 1 0 1 1 1.414 1.414zM4 12a1 1 0 0 1-1-1H1a1 1 0 0 1 0-2h2a1 1 0 0 1 1 1zm18 0a1 1 0 0 1-1-1h-2a1 1 0 0 1 0-2h2a1 1 0 0 1 1 1zM6.636 18.364a1 1 0 1 1-1.414-1.414l1.414-1.414a1 1 0 0 1 1.414 1.414a1 1 0 0 1-.707.293zm12.728-11.728a1 1 0 1 1-1.414-1.414l-1.414 1.414a1 1 0 1 1-1.414-1.414 1 1 0 0 1 1.414 1.414l1.414-1.414a1 1 0 0 1 1.414 0z"></path></svg>
-  </button>
+  <label for="themeToggle" class="themeToggle st-sunMoonThemeToggleBtn">
+    <input type="checkbox" id="themeToggle" class="themeToggleInput" />
+    <svg width="18" height="18" viewBox="0 0 20 20" stroke="none">
+      <mask id="moon-mask">
+        <rect x="0" y="0" width="20" height="20" fill="white"></rect>
+        <circle cx="11" cy="3" r="8" fill="black"></circle>
+      </mask>
+      <circle class="sunMoon" cx="10" cy="10" r="8" mask="url(#moon-mask)"></circle>
+      <g>
+        <circle class="sunRay sunRay1" cx="18" cy="10" r="1.5"></circle>
+        <circle class="sunRay sunRay2" cx="14" cy="16.928" r="1.5"></circle>
+        <circle class="sunRay sunRay3" cx="6" cy="16.928" r="1.5"></circle>
+        <circle class="sunRay sunRay4" cx="2" cy="10" r="1.5"></circle>
+        <circle class="sunRay sunRay5" cx="6" cy="3.1718" r="1.5"></circle>
+        <circle class="sunRay sunRay6" cx="14" cy="3.1718" r="1.5"></circle>
+      </g>
+    </svg>
+  </label>
   <script>
     let isChecking = false;
     const TEMP_TOKEN = "${token}";
@@ -351,14 +356,16 @@ function generateMainHTML(token, faviconURL) {
             }
         });
 
-        const themeToggle = document.getElementById('theme-toggle');
+        const themeToggleCheckbox = document.getElementById('themeToggle');
         const body = document.body;
         
         const applyTheme = (theme) => {
             if (theme === 'dark') {
                 body.classList.add('dark-mode');
+                themeToggleCheckbox.checked = true;
             } else {
                 body.classList.remove('dark-mode');
+                themeToggleCheckbox.checked = false;
             }
         };
 
@@ -369,9 +376,14 @@ function generateMainHTML(token, faviconURL) {
             applyTheme('dark');
         }
 
-        themeToggle.addEventListener('click', () => {
-            const isDarkMode = body.classList.toggle('dark-mode');
-            localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+        themeToggleCheckbox.addEventListener('change', () => {
+            if (themeToggleCheckbox.checked) {
+                applyTheme('dark');
+                localStorage.setItem('theme', 'dark');
+            } else {
+                applyTheme('light');
+                localStorage.setItem('theme', 'light');
+            }
         });
     });
 
@@ -558,4 +570,4 @@ function generateMainHTML(token, faviconURL) {
   </script>
 </body>
 </html>`;
-              }
+  }
