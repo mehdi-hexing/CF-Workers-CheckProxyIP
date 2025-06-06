@@ -352,7 +352,8 @@ async function generateNginxPage() {
 }
 
 async function generateMainHTML(hostname, faviconURL, token) {
-  const html = \\` <!DOCTYPE html>
+  const html = `
+  <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -1067,7 +1068,7 @@ async function generateMainHTML(hostname, faviconURL, token) {
   </script>
 </body>
 </html>
-\\`;
+`;
 
   return new Response(html, {
     headers: { "content-type": "text/html;charset=UTF-8" }
