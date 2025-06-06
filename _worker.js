@@ -15,28 +15,6 @@ async function doubleHash(text) {
   return secondHex.toLowerCase();
 }
 
-async function resolveDomain(domain) {
-  domain = domain.includes(':') ? domain.split(':')[0] : domain;
-  try {
-    const [ipv4Response, ipv6Response] = await Promise.all([
-      fetch(`https://1.1.1.1/dns-query?name=${domain}&type=A`, { headers: { 'Accept': 'application/dns-json' } }),
-      fetch(`https://1.1.1.1/dns-query?name=${domain}&type=AAAA`, { headers: { 'Accept': 'application/dns-json' } })
-    ]);
-    const [ipv4Data, ipv6Data] = await Promise.all([ipv4Response.json(), ipv6Response.json()]);
-    const ips = [];
-    if (ipv4Data.Answer) {
-      ips.push(...ipv4Data.Answer.filter(r => r.type === 1).map(r => r.data));
-    }
-    if (ipv6Data.Answer) {
-      ips.push(...ipv6Data.Answer.filter(r => r.type === 28).map(r => `[${r.data}]`));
-    }
-    if (ips.length === 0) throw new Error('No A or AAAA records found');
-    return ips;
-  } catch (error) {
-    throw new Error(`DNS resolution failed: ${error.message}`);
-  }
-}
-
 async function checkProxyIP(proxyIPWithPort) {
   let portRemote = 443;
   let hostToCheck = proxyIPWithPort;
@@ -137,17 +115,6 @@ export default {
             });
         }
 
-        if (path.toLowerCase() === '/api/resolve') {
-            if (!url.searchParams.has('domain')) return new Response('Missing domain parameter', { status: 400 });
-            const domain = url.searchParams.get('domain');
-            try {
-                const ips = await resolveDomain(domain);
-                return new Response(JSON.stringify({ success: true, domain, ips }), { headers: { "Content-Type": "application/json" } });
-            } catch (error) {
-                return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: { "Content-Type": "application/json" } });
-            }
-        }
-        
         if (path.toLowerCase() === '/api/ip-info') {
             let ip = url.searchParams.get('ip') || request.headers.get('CF-Connecting-IP');
             if (!ip) return new Response('IP parameter not provided', { status: 400 });
@@ -248,41 +215,40 @@ function generateMainHTML(faviconURL) {
     #successfulRangeIPsList { border: 1px solid var(--border-color); padding: 10px; border-radius: var(--border-radius-sm); }
     .ip-item { padding:8px 5px; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; }
     #successfulRangeIPsList .ip-item:last-child { border-bottom: none; }
-    .api-docs { margin-top: 30px; padding: 25px; background: var(--bg-primary); border-radius: var(--border-radius); transition: background 0.3s ease; }
-    .api-docs p { background-color: var(--bg-secondary); border: 1px solid var(--border-color); padding: 10px; border-radius: 4px; margin-bottom: 10px; word-break: break-all; transition: background 0.3s ease, border-color 0.3s ease;}
-    .api-docs p code { background: none; padding: 0;}
-    .footer { text-align: center; padding: 20px; margin-top: 30px; color: rgba(255,255,255,0.8); font-size: 0.85em; border-top: 1px solid rgba(255,255,255,0.1); }
     .github-corner svg { fill: var(--primary-color); color: #fff; position: fixed; top: 0; border: 0; right: 0; z-index: 1000;}
     body.dark-mode .github-corner svg { fill: #fff; color: #151513; }
     .octo-arm{transform-origin:130px 106px}
     .github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}
     @keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}
     
-    .themeToggle {
-        position: fixed;
-        bottom: 25px;
-        right: 25px;
-        z-index: 1002;
-        color: #efefef;
-        width: 3em;
-        filter: drop-shadow(0 2px 3px rgba(0,0,0,0.2));
+    #theme-toggle {
+      position: fixed;
+      bottom: 25px;
+      right: 25px;
+      z-index: 1002;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+      transition: background 0.3s, border-color 0.3s;
     }
-    .st-sunMoonThemeToggleBtn { position: relative; cursor: pointer; }
-    .st-sunMoonThemeToggleBtn .themeToggleInput { opacity: 0; position: absolute; width: 100%; height: 100%;}
-    .st-sunMoonThemeToggleBtn svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transition: transform 0.4s ease; transform: rotate(40deg); }
-    .st-sunMoonThemeToggleBtn svg .sunMoon { transform-origin: center center; transition: inherit; transform: scale(1); }
-    .st-sunMoonThemeToggleBtn svg .sunRay { transform-origin: center center; transform: scale(0); }
-    .st-sunMoonThemeToggleBtn svg mask > circle { transition: transform 0.64s cubic-bezier(0.41, 0.64, 0.32, 1.575); transform: translate(0px, 0px); }
-    .st-sunMoonThemeToggleBtn svg .sunRay2 { animation-delay: 0.05s !important; }
-    .st-sunMoonThemeToggleBtn svg .sunRay3 { animation-delay: 0.1s !important; }
-    .st-sunMoonThemeToggleBtn svg .sunRay4 { animation-delay: 0.17s !important; }
-    .st-sunMoonThemeToggleBtn svg .sunRay5 { animation-delay: 0.25s !important; }
-    .st-sunMoonThemeToggleBtn svg .sunRay6 { animation-delay: 0.29s !important; }
-    .st-sunMoonThemeToggleBtn .themeToggleInput:checked + svg { transform: rotate(90deg); }
-    .st-sunMoonThemeToggleBtn .themeToggleInput:checked + svg mask > circle { transform: translate(16px, -3px); }
-    .st-sunMoonThemeToggleBtn .themeToggleInput:checked + svg .sunMoon { transform: scale(0.55); }
-    .st-sunMoonThemeToggleBtn .themeToggleInput:checked + svg .sunRay { animation: showRay1832 0.4s ease 0s 1 forwards; }
-    @keyframes showRay1832 { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+    #theme-toggle svg {
+      width: 24px;
+      height: 24px;
+      stroke: var(--text-primary);
+      transition: all 0.3s ease;
+    }
+    #theme-toggle .moon-icon { display: none; }
+    #theme-toggle .sun-icon { display: block; }
+    body.dark-mode #theme-toggle .moon-icon { display: block; }
+    body.dark-mode #theme-toggle .sun-icon { display: none; }
   </style>
 </head>
 <body>
@@ -319,7 +285,6 @@ function generateMainHTML(faviconURL) {
     <div class="api-docs">
        <h3 style="margin-bottom:15px; text-align:center;">API Documentation</h3>
        <p><code>GET /api/check?proxyip=YOUR_IP&token=YOUR_TOKEN</code></p>
-       <p><code>GET /api/resolve?domain=YOUR_DOMAIN&token=YOUR_TOKEN</code></p>
        <p><code>GET /api/ip-info?ip=TARGET_IP&token=YOUR_TOKEN</code></p>
     </div>
     <footer class="footer">
@@ -327,24 +292,22 @@ function generateMainHTML(faviconURL) {
     </footer>
   </div>
   <div id="toast" class="toast"></div>
-  <label for="themeToggle" class="themeToggle st-sunMoonThemeToggleBtn">
-    <input type="checkbox" id="themeToggle" class="themeToggleInput" />
-    <svg width="18" height="18" viewBox="0 0 20 20" stroke="none" fill="currentColor">
-      <mask id="moon-mask">
-        <rect x="0" y="0" width="20" height="20" fill="white"></rect>
-        <circle cx="11" cy="3" r="8" fill="black"></circle>
-      </mask>
-      <circle class="sunMoon" cx="10" cy="10" r="8" mask="url(#moon-mask)"></circle>
-      <g>
-        <circle class="sunRay sunRay1" cx="18" cy="10" r="1.5"></circle>
-        <circle class="sunRay sunRay2" cx="14" cy="16.928" r="1.5"></circle>
-        <circle class="sunRay sunRay3" cx="6" cy="16.928" r="1.5"></circle>
-        <circle class="sunRay sunRay4" cx="2" cy="10" r="1.5"></circle>
-        <circle class="sunRay sunRay5" cx="6" cy="3.1718" r="1.5"></circle>
-        <circle class="sunRay sunRay6" cx="14" cy="3.1718" r="1.5"></circle>
-      </g>
+  <button id="theme-toggle" aria-label="Toggle Theme">
+    <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
     </svg>
-  </label>
+    <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+    </svg>
+  </button>
   <script>
     let isChecking = false;
     let TEMP_TOKEN = '';
@@ -369,16 +332,14 @@ function generateMainHTML(faviconURL) {
             }
         });
 
-        const themeToggleCheckbox = document.getElementById('themeToggle');
+        const themeToggleBtn = document.getElementById('theme-toggle');
         const body = document.body;
         
         const applyTheme = (theme) => {
             if (theme === 'dark') {
                 body.classList.add('dark-mode');
-                themeToggleCheckbox.checked = true;
             } else {
                 body.classList.remove('dark-mode');
-                themeToggleCheckbox.checked = false;
             }
         };
 
@@ -389,10 +350,9 @@ function generateMainHTML(faviconURL) {
             applyTheme('dark');
         }
 
-        themeToggleCheckbox.addEventListener('change', () => {
-            const isDarkMode = themeToggleCheckbox.checked;
-            localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
-            applyTheme(isDarkMode ? 'dark' : 'light');
+        themeToggleBtn.addEventListener('click', () => {
+            body.classList.toggle('dark-mode');
+            localStorage.setItem('theme', body.classList.contains('dark-mode') ? 'dark' : 'light');
         });
     });
 
@@ -587,4 +547,4 @@ function generateMainHTML(faviconURL) {
   </script>
 </body>
 </html>`;
-  }
+                                }
