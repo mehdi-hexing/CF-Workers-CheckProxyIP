@@ -352,7 +352,7 @@ async function generateNginxPage() {
 }
 
 async function generateMainHTML(hostname, faviconURL, token) {
-  const html = `
+  const html = \`
   <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -583,7 +583,7 @@ async function generateMainHTML(hostname, faviconURL, token) {
         return new RegExp(domainPattern).test(input) || new RegExp(ipv4Pattern).test(input) || new RegExp(ipv6Pattern).test(input) || new RegExp(withPortPattern).test(input) || new RegExp(tpPortPattern).test(input);
     }
 
-    function isIPAddress(input) {
+     function isIPAddress(input) {
       const ipv4Pattern = "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$";
       const ipv6Pattern = "^\\\\[?([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}\\\\]?$";
       const ipv6WithPortPattern = "^\\\\[[0-9a-fA-F:]+\\\\]:\\\\d+$";
@@ -596,8 +596,8 @@ async function generateMainHTML(hostname, faviconURL, token) {
         const ips = [];
         rangeInput = rangeInput.trim();
         
-        const cidrPattern = new RegExp(/^(\\d{1,3}\.\\d{1,3}\.\\d{1,3}\.\\d{1,3})\\/24$/);
-        const simpleRangePattern = new RegExp(/^(\\d{1,3}\.\\d{1,3}\.\\d{1,3}\.)(\\d{1,3})-(\\d{1,3})$/);
+        const cidrPattern = new RegExp(/^(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})\\/24$/);
+        const simpleRangePattern = new RegExp(/^(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.)(\\d{1,3})-(\\d{1,3})$/);
 
         if (cidrPattern.test(rangeInput)) {
             const baseIp = rangeInput.split('/')[0];
@@ -972,9 +972,9 @@ async function generateMainHTML(hostname, faviconURL, token) {
       let portRemote = 443;
       let cleanDomain = domain;
       
-      if (domain.includes('.tp')) {
-        const portMatch = domain.match(/\\\\.tp(\\\\d+)\\\\./);
-        if (portMatch) portRemote = parseInt(portMatch[1]);
+      const tpPortMatch = domain.match(/\\\\.tp(\\\\d+)\\\\./);
+      if (tpPortMatch) {
+        portRemote = parseInt(tpPortMatch[1]);
         cleanDomain = domain.split('.tp')[0];
       } else if (domain.includes('[') && domain.includes(']:')) {
         portRemote = parseInt(domain.split(']:')[1]) || 443;
@@ -1068,9 +1068,9 @@ async function generateMainHTML(hostname, faviconURL, token) {
   </script>
 </body>
 </html>
-`;
+\`;
 
   return new Response(html, {
     headers: { "content-type": "text/html;charset=UTF-8" }
   });
-                                                }
+          }
