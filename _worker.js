@@ -30,7 +30,7 @@ async function resolveDomain(domain) {
     if (ipv6Data.Answer) {
       ips.push(...ipv6Data.Answer.filter(r => r.type === 28).map(r => `[${r.data}]`));
     }
-    if (ips.length === 0) throw new Error('No A or AAAA records found');
+    if (ips.length === 0) throw new Error('No A or AAAA records found for this domain.');
     return ips;
   } catch (error) {
     throw new Error(`DNS resolution failed: ${error.message}`);
@@ -196,6 +196,10 @@ function generateMainHTML(faviconURL) {
       --primary-color: #3498db; 
       --success-color: #2ecc71;
       --error-color: #e74c3c; 
+      --result-success-bg: #d4edda;
+      --result-success-text: #155724;
+      --result-error-bg: #f8d7da;
+      --result-error-text: #721c24;
       --border-radius: 12px; 
       --border-radius-sm: 8px;
     }
@@ -206,6 +210,10 @@ function generateMainHTML(faviconURL) {
       --text-primary: #ecf0f1;
       --text-light: #95a5a6;
       --border-color: #465b71;
+      --result-success-bg: #2c5a3d;
+      --result-success-text: #ffffff;
+      --result-error-bg: #5a2c2c;
+      --result-error-text: #ffffff;
     }
     html {
       height: 100%;
@@ -239,15 +247,16 @@ function generateMainHTML(faviconURL) {
     .loading-spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 1s linear infinite; display: none; margin-left: 8px; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .result-section { margin-top: 25px; }
-    .result-card { padding: 18px; border-radius: var(--border-radius-sm); margin-bottom: 12px; }
-    .result-success { background-color: #d4edda; border-left: 4px solid var(--success-color); color: #155724; }
-    .result-error { background-color: #f8d7da; border-left: 4px solid var(--error-color); color: #721c24; }
+    .result-card { padding: 18px; border-radius: var(--border-radius-sm); margin-bottom: 12px; transition: background-color 0.3s, color 0.3s, border-color 0.3s; }
+    .result-success { background-color: var(--result-success-bg); border-left: 4px solid var(--success-color); color: var(--result-success-text); }
+    .result-error { background-color: var(--result-error-bg); border-left: 4px solid var(--error-color); color: var(--result-error-text); }
+    .result-warning { background-color: #fff3cd; border-left: 4px solid var(--warning-color); color: #856404; }
     .copy-btn { background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 4px 8px; border-radius: 4px; font-size: 0.85em; cursor: pointer; margin-left: 8px;}
     .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 12px 20px; border-radius:var(--border-radius-sm); z-index:1001; opacity:0; transition: opacity 0.3s, transform 0.3s; }
     .toast.show { opacity:1; }
-    #successfulRangeIPsList { border: 1px solid var(--border-color); padding: 10px; border-radius: var(--border-radius-sm); }
+    #successfulRangeIPsList, .domain-ip-list { border: 1px solid var(--border-color); padding: 10px; border-radius: var(--border-radius-sm); max-height: 250px; overflow-y: auto;}
     .ip-item { padding:8px 5px; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; }
-    #successfulRangeIPsList .ip-item:last-child { border-bottom: none; }
+    #successfulRangeIPsList .ip-item:last-child, .domain-ip-list .ip-item:last-child { border-bottom: none; }
     .api-docs { margin-top: 30px; padding: 25px; background: var(--bg-primary); border-radius: var(--border-radius); transition: background 0.3s ease; }
     .api-docs p { background-color: var(--bg-secondary); border: 1px solid var(--border-color); padding: 10px; border-radius: 4px; margin-bottom: 10px; word-break: break-all; transition: background 0.3s ease, border-color 0.3s ease;}
     .api-docs p code { background: none; padding: 0;}
@@ -280,13 +289,11 @@ function generateMainHTML(faviconURL) {
       width: 24px;
       height: 24px;
       stroke: var(--text-primary);
-      fill: none;
+      fill: var(--text-primary);
       transition: all 0.3s ease;
     }
-    #theme-toggle .moon-icon { display: none; }
-    #theme-toggle .sun-icon { display: block; }
-    body.dark-mode #theme-toggle .moon-icon { display: block; }
-    body.dark-mode #theme-toggle .sun-icon { display: none; }
+    body:not(.dark-mode) #theme-toggle .sun-icon { display: none; }
+    body.dark-mode #theme-toggle .moon-icon { display: none; }
   </style>
 </head>
 <body>
@@ -343,7 +350,7 @@ function generateMainHTML(faviconURL) {
       <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
       <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
     </svg>
-    <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round">
       <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
     </svg>
   </button>
@@ -436,6 +443,12 @@ function generateMainHTML(faviconURL) {
         return response.json();
     }
 
+    function isIPAddress(input) {
+      const ipv4Pattern = "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$";
+      const ipv6Pattern = "^\\\\[?([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}\\\\]?$";
+      return new RegExp(ipv4Pattern).test(input) || new RegExp(ipv6Pattern).test(input);
+    }
+    
     async function checkInputs() {
         if (isChecking) return;
         
@@ -463,7 +476,11 @@ function generateMainHTML(faviconURL) {
 
         try {
             if (singleIpToTest) {
-                await checkAndDisplaySingleIP(singleIpToTest);
+                if (isIPAddress(singleIpToTest.split(':')[0].replace(/[\\[\\]]/g, ''))) {
+                    await checkAndDisplaySingleIP(singleIpToTest);
+                } else {
+                    await checkAndDisplayDomain(singleIpToTest);
+                }
             }
 
             if (individualRangeQueries.length > 0) {
@@ -559,6 +576,52 @@ function generateMainHTML(faviconURL) {
         }
     }
     
+    async function checkAndDisplayDomain(domain) {
+        const resultDiv = document.getElementById('result');
+        resultDiv.innerHTML = '<p style="text-align:center; color: var(--text-light);">Resolving domain...</p>';
+        try {
+            const resolveData = await fetchAPI('/api/resolve', new URLSearchParams({ domain: domain }));
+            if (!resolveData.success || !resolveData.ips || resolveData.ips.length === 0) {
+                throw new Error(resolveData.error || 'Could not resolve domain to any IPs.');
+            }
+            const ips = resolveData.ips;
+            let html = '<div class="result-card result-warning">' +
+                '<h3>🔍 Domain Resolution: ' + domain + '</h3>' +
+                '<p>Found ' + ips.length + ' IP(s). Checking each...</p>' +
+                '<div class="domain-ip-list">';
+            ips.forEach((ip, index) => {
+                html += '<div class="ip-item" id="domain-ip-item-' + index + '">' +
+                        '<span>' + ip + '</span>' +
+                        '<span id="domain-ip-status-' + index + '">🔄</span>' +
+                        '</div>';
+            });
+            html += '</div></div>';
+            resultDiv.innerHTML = html;
+
+            let successCount = 0;
+            const checkPromises = ips.map(async (ip, index) => {
+                const statusSpan = document.getElementById('domain-ip-status-' + index);
+                try {
+                    const checkResult = await fetchAPI('/api/check', new URLSearchParams({ proxyip: ip + ':443' }));
+                    if (checkResult.success) {
+                        statusSpan.textContent = '✅';
+                        successCount++;
+                    } else {
+                        statusSpan.textContent = '❌';
+                    }
+                } catch(e) {
+                    statusSpan.textContent = '⚠️';
+                }
+            });
+            await Promise.all(checkPromises);
+            
+            resultDiv.querySelector('h3').textContent = '🔍 Domain Scan Complete ('+successCount+'/'+ips.length+' Valid)';
+
+        } catch (error) {
+            resultDiv.innerHTML = '<div class="result-card result-error"><h3>❌ Error</h3><p>' + error.message + '</p></div>';
+        }
+    }
+    
     function parseIPRange(rangeInput) {
         const ips = [];
         const cidrPattern = new RegExp(/^(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})\\/24$/);
@@ -586,4 +649,4 @@ function generateMainHTML(faviconURL) {
   </script>
 </body>
 </html>`;
-              }
+                                                                      }
