@@ -285,12 +285,12 @@ function generateMainHTML(token, faviconURL) {
       <div class="form-section">
         <label for="proxyip" class="form-label">Enter Single Proxy IP or Domain:</label>
         <div class="input-wrapper">
-          <input type="text" id="proxyip" class="form-input" placeholder="e.g., 1.2.3.4:443 or example.com" autocomplete="off">
+          <input type="text" id="proxyip" class="form-input" placeholder="127.0.0.1 or nima.nscl.ir" autocomplete="off">
         </div>
         
         <label for="proxyipRangeRows" class="form-label">Enter IP Range(s) (one per line):</label>
         <div class="input-wrapper">
-          <textarea id="proxyipRangeRows" class="form-input" rows="3" placeholder="1.2.3.0/24\\n1.2.3.1-255" autocomplete="off"></textarea>
+          <textarea id="proxyipRangeRows" class="form-input" rows="3" placeholder="127.0.0.0/24 or 127.0.0.0-255"autocomplete="off"></textarea>
         </div>
 
         <button id="checkBtn" class="btn-primary">
