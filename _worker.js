@@ -215,6 +215,10 @@ function generateMainHTML(faviconURL) {
     #successfulRangeIPsList { border: 1px solid var(--border-color); padding: 10px; border-radius: var(--border-radius-sm); }
     .ip-item { padding:8px 5px; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; }
     #successfulRangeIPsList .ip-item:last-child { border-bottom: none; }
+    .api-docs { margin-top: 30px; padding: 25px; background: var(--bg-primary); border-radius: var(--border-radius); transition: background 0.3s ease; }
+    .api-docs p { background-color: var(--bg-secondary); border: 1px solid var(--border-color); padding: 10px; border-radius: 4px; margin-bottom: 10px; word-break: break-all; transition: background 0.3s ease, border-color 0.3s ease;}
+    .api-docs p code { background: none; padding: 0;}
+    .footer { text-align: center; padding: 20px; margin-top: 30px; color: rgba(255,255,255,0.8); font-size: 0.85em; border-top: 1px solid rgba(255,255,255,0.1); }
     .github-corner svg { fill: var(--primary-color); color: #fff; position: fixed; top: 0; border: 0; right: 0; z-index: 1000;}
     body.dark-mode .github-corner svg { fill: #fff; color: #151513; }
     .octo-arm{transform-origin:130px 106px}
@@ -237,18 +241,15 @@ function generateMainHTML(faviconURL) {
       justify-content: center;
       padding: 0;
       box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-      transition: background 0.3s, border-color 0.3s;
+      transition: background-color 0.3s, border-color 0.3s;
     }
     #theme-toggle svg {
       width: 24px;
       height: 24px;
       stroke: var(--text-primary);
+      fill: var(--text-primary);
       transition: all 0.3s ease;
     }
-    #theme-toggle .moon-icon { display: none; }
-    #theme-toggle .sun-icon { display: block; }
-    body.dark-mode #theme-toggle .moon-icon { display: block; }
-    body.dark-mode #theme-toggle .sun-icon { display: none; }
   </style>
 </head>
 <body>
@@ -293,19 +294,8 @@ function generateMainHTML(faviconURL) {
   </div>
   <div id="toast" class="toast"></div>
   <button id="theme-toggle" aria-label="Toggle Theme">
-    <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="12" cy="12" r="5"></circle>
-      <line x1="12" y1="1" x2="12" y2="3"></line>
-      <line x1="12" y1="21" x2="12" y2="23"></line>
-      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-      <line x1="1" y1="12" x2="3" y2="12"></line>
-      <line x1="21" y1="12" x2="23" y2="12"></line>
-      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-    </svg>
-    <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 7.05l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
     </svg>
   </button>
   <script>
@@ -547,4 +537,4 @@ function generateMainHTML(faviconURL) {
   </script>
 </body>
 </html>`;
-                                }
+}
