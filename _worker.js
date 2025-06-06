@@ -293,13 +293,12 @@ function generateMainHTML(faviconURL) {
       width: 24px;
       height: 24px;
       stroke: var(--text-primary);
-      fill: var(--text-primary);
       transition: all 0.3s ease;
     }
-    body:not(.dark-mode) #theme-toggle .sun-icon { display: none; }
-    body.dark-mode #theme-toggle .moon-icon { display: none; }
-    #theme-toggle .moon-icon { fill: var(--text-primary); }
-    #theme-toggle .sun-icon { fill: none; }
+    body:not(.dark-mode) #theme-toggle .sun-icon { display: block; fill: none;}
+    body:not(.dark-mode) #theme-toggle .moon-icon { display: none; }
+    body.dark-mode #theme-toggle .sun-icon { display: none; }
+    body.dark-mode #theme-toggle .moon-icon { display: block; fill: var(--text-primary); stroke: var(--text-primary); }
   </style>
 </head>
 <body>
@@ -423,6 +422,10 @@ function generateMainHTML(faviconURL) {
             showToast(successMessage);
             if (element) setTimeout(() => { element.textContent = originalText; }, 2000);
         }).catch(err => showToast('Copy failed. Please copy manually.'));
+    }
+    
+    function createCopyButton(text) {
+        return '<span class="copy-btn" data-copy="' + text + '">' + text + '</span>';
     }
 
     function toggleCheckButton(checking) {
@@ -701,4 +704,4 @@ function generateMainHTML(faviconURL) {
   </script>
 </body>
 </html>`;
-                                                                 }
+}
