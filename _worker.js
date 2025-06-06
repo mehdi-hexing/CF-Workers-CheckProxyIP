@@ -352,13 +352,13 @@ async function generateNginxPage() {
 }
 
 async function generateMainHTML(hostname, faviconURL, token) {
-  const html = `<!DOCTYPE html>
+  const html = \`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Proxy IP Checker</title>
-  <link rel="icon" href="${faviconURL}" type="image/x-icon">
+  <link rel="icon" href="\${faviconURL}" type="image/x-icon">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -486,7 +486,7 @@ async function generateMainHTML(hostname, faviconURL, token) {
     </div>
 
     <footer class="footer">
-      <p>© ${new Date().getFullYear()} Proxy IP Checker - By <strong>mehdi-hexing</strong> | Modified by mehdi-hexing</p>
+      <p>© \${new Date().getFullYear()} Proxy IP Checker - By <strong>mehdi-hexing</strong> | Modified by mehdi-hexing</p>
     </footer>
   </div>
 
@@ -496,7 +496,7 @@ async function generateMainHTML(hostname, faviconURL, token) {
     let isChecking = false;
     let ipCheckResults = new Map();
     let pageLoadTimestamp;
-    const TEMP_TOKEN = "${token}"; 
+    const TEMP_TOKEN = "\${token}"; 
     let rangeChartInstance = null;
     let currentSuccessfulRangeIPs = [];
     let totalCheckedCountAcrossRanges = 0;
@@ -570,7 +570,7 @@ async function generateMainHTML(hostname, faviconURL, token) {
       }).catch(err => { showToast('Copy failed. Please copy manually.'); });
     }
     
-    function createCopyButton(text) { return \`<span class="copy-btn" data-copy="\${text}">\${text}</span>\`; }
+    function createCopyButton(text) { return \`<span class="copy-btn" data-copy="\<span class="math-inline">\{text\}"\>\\</span>{text}</span>\`; }
 
     function isValidProxyIPFormat(input) {
         const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?)*$/;
@@ -597,7 +597,7 @@ async function generateMainHTML(hostname, faviconURL, token) {
             const baseParts = baseIp.split('.');
             if (baseParts.length === 4 ) {
                 for (let i = 1; i <= 255; i++) {
-                    ips.push(\`\${baseParts[0]}.\${baseParts[1]}.\${baseParts[2]}.\${i}\`);
+                    ips.push(\`\<span class="math-inline">\{baseParts\[0\]\}\.\\$\{baseParts\[1\]\}\.\\$\{baseParts\[2\]\}\.\\</span>{i}\`);
                 }
             } else {
                  showToast('Invalid CIDR format. Expected x.x.x.0/24.');
@@ -611,10 +611,10 @@ async function generateMainHTML(hostname, faviconURL, token) {
             const ipParts = baseIpWithLastOctet.split('.');
             if (ipParts.length === 4) {
                 const startOctet = parseInt(ipParts[3]);
-                const prefix = \`\${ipParts[0]}.\${ipParts[1]}.\${ipParts[2]}\`;
+                const prefix = \`\<span class="math-inline">\{ipParts\[0\]\}\.\\$\{ipParts\[1\]\}\.\\</span>{ipParts[2]}\`;
                 if (!isNaN(startOctet) && !isNaN(endOctet) && startOctet <= endOctet && startOctet >= 0 && endOctet <= 255) {
                     for (let i = startOctet; i <= endOctet; i++) {
-                        ips.push(\`\${prefix}.\${i}\`);
+                        ips.push(\`\<span class="math-inline">\{prefix\}\.\\</span>{i}\`);
                     }
                 } else {
                     showToast('Invalid range in x.x.x.A-B format.');
@@ -680,7 +680,7 @@ async function generateMainHTML(hostname, faviconURL, token) {
         const currentHost = window.location.host;
         const currentProtocol = window.location.protocol;
         let redirectPathVal = singleIpToTest || (individualRangeQueries.length > 0 ? individualRangeQueries[0] : '') || '';
-        const redirectUrl = \`\${currentProtocol}//\${currentHost}/\${encodeURIComponent(redirectPathVal)}\`;
+        const redirectUrl = \`\<span class="math-inline">\{currentProtocol\}//\\$\{currentHost\}/\\</span>{encodeURIComponent(redirectPathVal)}\`;
         showToast('TOKEN expired, refreshing page...');
         setTimeout(() => { window.location.href = redirectUrl; }, 1000);
         return;
@@ -762,7 +762,7 @@ async function generateMainHTML(hostname, faviconURL, token) {
 
                     await Promise.all(batchPromises);
                     
-                    if(rangeResultSummary) rangeResultSummary.innerHTML = \`Total Tested: \${totalCheckedCountAcrossRanges} | Total Successful: \${totalSuccessCountAcrossRanges}\`;
+                    if(rangeResultSummary) rangeResultSummary.innerHTML = \`Total Tested: \<span class="math-inline">\{totalCheckedCountAcrossRanges\} \| Total Successful\: \\</span>{totalSuccessCountAcrossRanges}\`;
                     if(successfulIPsListDiv) updateSuccessfulRangeIPsDisplay(successfulIPsListDiv, currentSuccessfulRangeIPs);
 
                     if (currentSuccessfulRangeIPs.length > 0) {
@@ -778,7 +778,7 @@ async function generateMainHTML(hostname, faviconURL, token) {
                 showToast(\`Finished processing range: \${rangeQuery}\`, 2000);
             }
 
-            if(rangeResultSummary) rangeResultSummary.innerHTML = \`All ranges processed. Total Tested: \${totalCheckedCountAcrossRanges} | Total Successful: \${totalSuccessCountAcrossRanges}\`;
+            if(rangeResultSummary) rangeResultSummary.innerHTML = \`All ranges processed. Total Tested: \<span class="math-inline">\{totalCheckedCountAcrossRanges\} \| Total Successful\: \\</span>{totalSuccessCountAcrossRanges}\`;
             if (currentSuccessfulRangeIPs.length === 0) {
                 showToast('No successful IPs found in any of the provided ranges.');
                  if(successfulIPsListDiv) successfulIPsListDiv.innerHTML = '<p style="text-align:center; color: var(--text-light);">No successful IPs found.</p>';
@@ -816,8 +816,8 @@ async function generateMainHTML(hostname, faviconURL, token) {
         successfulIPsData.forEach(item => {
             html += \`
                 <div class="ip-item">
-                    <div>\${item.ip}</div>
-                    <div style="color: var(--text-primary); font-weight: 500;">\${item.countryCode || 'N/A'}</div>
+                    <div>\<span class="math-inline">\{item\.ip\}</div\>
+<div style\="color\: var\(\-\-text\-primary\); font\-weight\: 500;"\>\\</span>{item.countryCode || 'N/A'}</div>
                 </div>
             \`;
         });
@@ -903,7 +903,7 @@ async function generateMainHTML(hostname, faviconURL, token) {
     }
 
     async function fetchSingleIPCheck(proxyipWithOptionalPort) {
-        const requestUrl = \`./check?proxyip=\${encodeURIComponent(proxyipWithOptionalPort)}&token=\${TEMP_TOKEN}\`;
+        const requestUrl = \`./check?proxyip=\<span class="math-inline">\{encodeURIComponent\(proxyipWithOptionalPort\)\}&token\=\\</span>{TEMP_TOKEN}\`;
         const response = await fetch(requestUrl);
         return await response.json();
     }
@@ -934,10 +934,10 @@ async function generateMainHTML(hostname, faviconURL, token) {
         resultDiv.innerHTML = \`
           <div class="result-card result-success">
             <h3>✅ ProxyIP Valid</h3>
-            <p><strong>🌐 ProxyIP Address:</strong> \${createCopyButton(data.proxyIP)}\${asDisplay}</p>
-            \${countryLine}
-            <p><strong>🔌 Port:</strong> \${createCopyButton(data.portRemote.toString())}</p>
-            <p><strong>🕒 Check Time:</strong> \${new Date(data.timestamp).toLocaleString()}</p>
+            <p><strong>🌐 ProxyIP Address:</strong> \<span class="math-inline">\{createCopyButton\(data\.proxyIP\)\}\\$\{asDisplay\}</p\>
+\\$\{countryLine\}
+<p\><strong\>🔌 Port\:</strong\> \\$\{createCopyButton\(data\.portRemote\.toString\(\)\)\}</p\>
+<p\><strong\>🕒 Check Time\:</strong\> \\</span>{new Date(data.timestamp).toLocaleString()}</p>
           </div>
         \`;
       } else {
@@ -957,9 +957,9 @@ async function generateMainHTML(hostname, faviconURL, token) {
         resultDiv.innerHTML = \`
           <div class="result-card result-error">
             <h3>❌ ProxyIP Invalid</h3>
-            <p><strong>🌐 IP Address:</strong> \${createCopyButton(proxyip)}\${asDisplayOnError}</p>
-            \${countryLineOnError}
-            \${data.error ? \`<p><strong>Error:</strong> \${data.error}</p>\` : ''}
+            <p><strong>🌐 IP Address:</strong> \<span class="math-inline">\{createCopyButton\(proxyip\)\}\\$\{asDisplayOnError\}</p\>
+\\$\{countryLineOnError\}
+\\</span>{data.error ? \`<p><strong>Error:</strong> \${data.error}</p>\` : ''}
             <p><strong>🕒 Check Time:</strong> \${new Date(data.timestamp).toLocaleString()}</p>
           </div>
         \`;
@@ -987,7 +987,7 @@ async function generateMainHTML(hostname, faviconURL, token) {
          }
       }
       
-      const resolveResponse = await fetch(\`./resolve?domain=\${encodeURIComponent(cleanDomain)}&token=\${TEMP_TOKEN}\`);
+      const resolveResponse = await fetch(\`./resolve?domain=\<span class="math-inline">\{encodeURIComponent\(cleanDomain\)\}&token\=\\</span>{TEMP_TOKEN}\`);
       const resolveData = await resolveResponse.json();
       
       if (!resolveData.success) { throw new Error(resolveData.error || 'Domain resolution failed'); }
@@ -998,11 +998,11 @@ async function generateMainHTML(hostname, faviconURL, token) {
       resultDiv.innerHTML = \`
         <div class="result-card result-warning">
           <h3>🔍 Domain Resolution Results</h3>
-          <p><strong>🌐 Domain:</strong> \${createCopyButton(cleanDomain)}</p>
-          <p><strong>🔌 Default Port for Test:</strong> \${portRemote}</p>
-          <p><strong>📋 IPs Found:</strong> \${ips.length}</p>
-          <div class="ip-grid" id="ip-grid" style="max-height: 200px; overflow-y: auto; margin-top:10px; border:1px solid #eee; padding:5px;">
-            \${ips.map((ip, index) => \`
+          <p><strong>🌐 Domain:</strong> \<span class="math-inline">\{createCopyButton\(cleanDomain\)\}</p\>
+<p\><strong\>🔌 Default Port for Test\:</strong\> \\$\{portRemote\}</p\>
+<p\><strong\>📋 IPs Found\:</strong\> \\$\{ips\.length\}</p\>
+<div class\="ip\-grid" id\="ip\-grid" style\="max\-height\: 200px; overflow\-y\: auto; margin\-top\:10px; border\:1px solid \#eee; padding\:5px;"\>
+\\</span>{ips.map((ip, index) => \`
               <div class="ip-item" id="ip-item-\${index}">
                 <div>\${createCopyButton(ip)} <span id="ip-info-\${index}" style="font-size:0.8em; color:#555;"></span></div>
                 <span class="status-icon" id="status-icon-\${index}" style="font-size:1.2em;">🔄</span>
@@ -1022,13 +1022,13 @@ async function generateMainHTML(hostname, faviconURL, token) {
       if(resultCardHeader){
           if (validCount === ips.length) resultCardHeader.textContent = '✅ All Domain IPs Valid';
           else if (validCount === 0) resultCardHeader.textContent = '❌ All Domain IPs Invalid';
-          else resultCardHeader.textContent = \`⚠️ Some Domain IPs Valid (\${validCount}/\${ips.length})\`;
+          else resultCardHeader.textContent = \`⚠️ Some Domain IPs Valid (\<span class="math-inline">\{validCount\}/\\</span>{ips.length})\`;
       }
     }
 
     async function checkDomainIPWithIndex(ip, port, index) {
       try {
-        const ipToTest = ip.includes(':') || ip.includes(']:') ? ip : \`\${ip}:\${port}\`;
+        const ipToTest = ip.includes(':') || ip.includes(']:') ? ip : \`\<span class="math-inline">\{ip\}\:\\</span>{port}\`;
         const result = await fetchSingleIPCheck(ipToTest);
         ipCheckResults.set(ipToTest, result);
         
@@ -1052,7 +1052,7 @@ async function generateMainHTML(hostname, faviconURL, token) {
     async function getIPInfo(ip) {
       try {
         const cleanIP = ip.replace(/[\\[\\]]/g, '');
-        const response = await fetch(\`./ip-info?ip=\${encodeURIComponent(cleanIP)}&token=\${TEMP_TOKEN}\`);
+        const response = await fetch(\`./ip-info?ip=\<span class="math-inline">\{encodeURIComponent\(cleanIP\)\}&token\=\\</span>{TEMP_TOKEN}\`);
         return await response.json();
       } catch (error) { return null; }
     }
@@ -1061,8 +1061,8 @@ async function generateMainHTML(hostname, faviconURL, token) {
       if (!ipInfo || ipInfo.status !== 'success') { return ''; }
       const country = ipInfo.country || 'N/A';
       const as = ipInfo.as || 'N/A';
-      if(isShort) return \`(\${country} - \${as.substring(0,15)}...)\`;
-      return \`<span style="font-size:0.85em; color:#555;">(\${country} - \${as})</span>\`;
+      if(isShort) return \`(\<span class="math-inline">\{country\} \- \\</span>{as.substring(0,15)}...)\`;
+      return \`<span style="font-size:0.85em; color:#555;">(\<span class="math-inline">\{country\} \- \\</span>{as})</span>\`;
     }
   </script>
 </body>
@@ -1072,4 +1072,4 @@ async function generateMainHTML(hostname, faviconURL, token) {
   return new Response(html, {
     headers: { "content-type": "text/html;charset=UTF-8" }
   });
-      }
+}
