@@ -295,10 +295,10 @@ function generateMainHTML(faviconURL) {
       stroke: var(--text-primary);
       transition: all 0.3s ease;
     }
-    body:not(.dark-mode) #theme-toggle .sun-icon { display: block; fill: none;}
-    body:not(.dark-mode) #theme-toggle .moon-icon { display: none; }
-    body.dark-mode #theme-toggle .sun-icon { display: none; }
-    body.dark-mode #theme-toggle .moon-icon { display: block; fill: var(--text-primary); stroke: var(--text-primary); }
+    body:not(.dark-mode) #theme-toggle .sun-icon { display: none; }
+    body.dark-mode #theme-toggle .moon-icon { display: none; }
+    #theme-toggle .moon-icon { fill: var(--text-primary); }
+    #theme-toggle .sun-icon { fill: none; }
   </style>
 </head>
 <body>
@@ -309,13 +309,13 @@ function generateMainHTML(faviconURL) {
     </header>
     <div class="card">
       <div class="form-section">
-        <label for="proxyip" class="form-label">Enter Single Proxy IP or Domain:</label>
+        <label for="proxyip" class="form-label">Enter Single IP/Domain or multiple IPs (one per line):</label>
         <div class="input-wrapper">
-          <input type="text" id="proxyip" class="form-input" placeholder="127.0.0.1 or nima.nscl.ir" autocomplete="off">
+          <textarea id="proxyip" class="form-input" rows="3" placeholder="e.g., 1.2.3.4:443, example.com or multiple IPs" autocomplete="off"></textarea>
         </div>
         <label for="proxyipRangeRows" class="form-label">Enter IP Range(s) (one per line):</label>
         <div class="input-wrapper">
-          <textarea id="proxyipRangeRows" class="form-input" rows="3" placeholder="127.0.0.0/24 or 127.0.0.0-255" autocomplete="off"></textarea>
+          <textarea id="proxyipRangeRows" class="form-input" rows="3" placeholder="1.2.3.0/24\\n1.2.3.1-255" autocomplete="off"></textarea>
         </div>
         <button id="checkBtn" class="btn-primary">
           <span style="display: flex; align-items: center; justify-content: center;">
@@ -344,7 +344,7 @@ function generateMainHTML(faviconURL) {
   </div>
   <div id="toast" class="toast"></div>
   <button id="theme-toggle" aria-label="Toggle Theme">
-    <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="12" r="5"></circle>
       <line x1="12" y1="1" x2="12" y2="3"></line>
       <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -423,7 +423,7 @@ function generateMainHTML(faviconURL) {
             if (element) setTimeout(() => { element.textContent = originalText; }, 2000);
         }).catch(err => showToast('Copy failed. Please copy manually.'));
     }
-    
+
     function createCopyButton(text) {
         return '<span class="copy-btn" data-copy="' + text + '">' + text + '</span>';
     }
@@ -465,10 +465,10 @@ function generateMainHTML(faviconURL) {
         
         const singleIpInputEl = document.getElementById('proxyip');
         const rangeIpTextareaEl = document.getElementById('proxyipRangeRows');
-        const singleIpToTest = singleIpInputEl.value.trim();
+        const singleInputs = singleIpInputEl.value.trim().split('\\n').map(s => s.trim()).filter(s => s);
         const individualRangeQueries = rangeIpTextareaEl.value.split('\\n').map(s => s.trim()).filter(s => s);
 
-        if (!singleIpToTest && individualRangeQueries.length === 0) {
+        if (singleInputs.length === 0 && individualRangeQueries.length === 0) {
             showToast('Please enter a single IP/Domain or at least one IP Range.');
             return;
         }
@@ -477,16 +477,15 @@ function generateMainHTML(faviconURL) {
         
         document.getElementById('result').innerHTML = '';
         const rangeResultCard = document.getElementById('rangeResultCard');
-        const rangeResultSummary = document.getElementById('rangeResultSummary');
-        const successfulIPsListDiv = document.getElementById('successfulRangeIPsList');
-        const copyRangeBtn = document.getElementById('copyRangeBtn');
-        
         rangeResultCard.style.display = 'none';
         currentSuccessfulRangeIPs = [];
         let totalChecked = 0, totalSuccess = 0;
 
         try {
-            if (singleIpToTest) {
+            if (singleInputs.length > 1) {
+                await checkAndDisplayMultipleIPs(singleInputs);
+            } else if (singleInputs.length === 1) {
+                const singleIpToTest = singleInputs[0];
                 if (isIPAddress(singleIpToTest.split(':')[0].replace(/[\\[\\]]/g, ''))) {
                     await checkAndDisplaySingleIP(singleIpToTest);
                 } else {
@@ -495,6 +494,10 @@ function generateMainHTML(faviconURL) {
             }
 
             if (individualRangeQueries.length > 0) {
+                const rangeResultSummary = document.getElementById('rangeResultSummary');
+                const successfulIPsListDiv = document.getElementById('successfulRangeIPsList');
+                const copyRangeBtn = document.getElementById('copyRangeBtn');
+                
                 rangeResultCard.style.display = 'block';
                 successfulIPsListDiv.innerHTML = '<p style="text-align:center; color: var(--text-light);">Processing...</p>';
                 rangeResultSummary.innerHTML = 'Total Tested: 0 | Total Successful: 0';
@@ -565,7 +568,7 @@ function generateMainHTML(faviconURL) {
     async function getIPInfoWithIndex(ip, index) {
       try {
         const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: ip.split(':')[0].replace(/[\\[\\]]/g, '') }));
-        const infoElement = document.getElementById('domain-ip-info-' + index);
+        const infoElement = document.getElementById('multi-info-' + index) || document.getElementById('domain-ip-info-' + index);
         if (infoElement) infoElement.innerHTML = formatIPInfo(ipInfo, true);
       } catch (error) { console.warn("Could not get IP info for " + ip, error); }
     }
@@ -677,6 +680,40 @@ function generateMainHTML(faviconURL) {
         }
     }
     
+    async function checkAndDisplayMultipleIPs(inputs) {
+        const resultDiv = document.getElementById('result');
+        let html = '<div class="result-card result-warning">' +
+                '<h3>🔍 Multiple Check Results</h3>' +
+                '<p><strong>📋 IPs Provided:</strong> ' + inputs.length + '</p>' +
+                '<div class="domain-ip-list">';
+        inputs.forEach((input, index) => {
+            html += '<div class="ip-item" id="multi-ip-item-' + index + '">' +
+                    '<div>' + createCopyButton(input) + '<span id="multi-ip-info-' + index + '"></span></div>' +
+                    '<span id="multi-ip-status-' + index + '">🔄</span>' +
+                    '</div>';
+        });
+        html += '</div></div>';
+        resultDiv.innerHTML = html;
+
+        const checkPromises = inputs.map(async (input, index) => {
+            const statusSpan = document.getElementById('multi-ip-status-' + index);
+            const infoSpan = document.getElementById('multi-ip-info-' + index);
+            try {
+                const result = await fetchAPI('/api/check', new URLSearchParams({ proxyip: input }));
+                if (result.success) {
+                    statusSpan.textContent = '✅';
+                    const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: result.proxyIP }));
+                    infoSpan.innerHTML = formatIPInfo(ipInfo, true);
+                } else {
+                    statusSpan.textContent = '❌';
+                }
+            } catch (error) {
+                statusSpan.textContent = '⚠️';
+            }
+        });
+        await Promise.all(checkPromises);
+    }
+    
     function parseIPRange(rangeInput) {
         const ips = [];
         const cidrPattern = new RegExp(/^(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})\\/24$/);
@@ -704,4 +741,4 @@ function generateMainHTML(faviconURL) {
   </script>
 </body>
 </html>`;
-}
+      }
