@@ -445,7 +445,7 @@ function generateMainHTML(faviconURL) {
        <hr style="border:0; border-top: 1px solid var(--border-color); margin: 20px 0;"/>
        <h4 style="margin-bottom:15px; text-align:center;">Direct URL Usage</h4>
        <p><code>/proxyip/IP1,IP2,...</code> - Server-side check for multiple IPs.</p>
-       <p><code>/iprange/1.1.1.0/24</code> - Pre-fills the range input box on the main page.</p>
+       <p><code>/iprange/1.1.1.0/24,...</code> - Pre-fills the range input box on the main page.</p>
        <p><code>/file/https://path.to/your/file.txt</code> - Server-side check for IPs in a remote file.</p>
     </div>
     <footer class="footer">
@@ -457,7 +457,363 @@ function generateMainHTML(faviconURL) {
     <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
     <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
   </button>
-  <script>${CLIENT_SCRIPT}</script>
+  <script>
+    var isChecking = false;
+    var TEMP_TOKEN = '';
+    var rangeSuccessfulIPs = [];
+    var ipCheckResults = new Map();
+
+    document.addEventListener('DOMContentLoaded', function() {
+        fetch('/api/get-token').then(function(res) { return res.json(); }).then(function(data) { TEMP_TOKEN = data.token; });
+        
+        var checkBtn = document.getElementById('checkBtn');
+        if(checkBtn) {
+            checkBtn.addEventListener('click', checkInputs);
+        }
+        
+        var copyRangeBtn = document.getElementById('copyRangeBtn');
+        if (copyRangeBtn) {
+            copyRangeBtn.addEventListener('click', function() {
+                if (rangeSuccessfulIPs.length > 0) {
+                    copyToClipboard(rangeSuccessfulIPs.join('\\n'), null, "All successful range IPs copied!");
+                }
+            });
+        }
+        
+        document.body.addEventListener('click', function(event) {
+            if (event.target.classList.contains('copy-btn')) {
+                var text = event.target.getAttribute('data-copy');
+                if (text) copyToClipboard(text, event.target, "Copied!");
+            }
+        });
+
+        var themeToggleBtn = document.getElementById('theme-toggle');
+        var body = document.body;
+        
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            body.classList.add('dark-mode');
+        }
+
+        themeToggleBtn.addEventListener('click', function() {
+            body.classList.toggle('dark-mode');
+            if (body.classList.contains('dark-mode')) {
+                localStorage.setItem('theme', 'dark');
+            } else {
+                localStorage.setItem('theme', 'light');
+            }
+        });
+        
+        handleHashChange();
+        window.addEventListener('hashchange', handleHashChange, false);
+    });
+
+    function handleHashChange() {
+        if (!location.hash.startsWith('#/action/')) return;
+        var parts = location.hash.split('/');
+        var type = parts[2];
+        var data = decodeURIComponent(parts.slice(3).join('/'));
+
+        if (data && type === 'range') {
+            document.getElementById('rangeInput').value = data.replace(/,/g, '\\n');
+            setTimeout(function() { document.getElementById('checkBtn').click(); }, 100);
+        }
+         if (data && type === 'proxyip') {
+            document.getElementById('mainInput').value = data.replace(/,/g, '\\n');
+            setTimeout(function() { document.getElementById('checkBtn').click(); }, 100);
+        }
+        history.pushState("", document.title, window.location.pathname + window.location.search);
+    }
+
+    function showToast(message, duration) {
+        if (duration === void 0) { duration = 3000; }
+        var toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.classList.add('show');
+        setTimeout(function() { toast.classList.remove('show'); }, duration);
+    }
+
+    function copyToClipboard(text, element, successMessage) {
+        if (successMessage === void 0) { successMessage = "Copied!"; }
+        navigator.clipboard.writeText(text).then(function() {
+            var originalText = element ? element.textContent : '';
+            if (element) {
+                element.textContent = 'Copied ✓';
+                setTimeout(function() { element.textContent = originalText; }, 2000);
+            }
+            showToast(successMessage);
+        }).catch(function(err) { showToast('Copy failed. Please copy manually.'); });
+    }
+    
+    function createCopyButton(text) {
+        return '<span class="copy-btn" data-copy="' + text + '">' + text + '</span>';
+    }
+
+    function toggleCheckButton(checking) {
+        isChecking = checking;
+        var checkBtn = document.getElementById('checkBtn');
+        if (!checkBtn) return;
+        checkBtn.disabled = checking;
+        var btnText = checkBtn.querySelector('.btn-text');
+        var spinner = checkBtn.querySelector('.loading-spinner');
+        if(btnText) btnText.style.display = checking ? 'none' : 'inline-block';
+        if(spinner) spinner.style.display = checking ? 'inline-block' : 'none';
+    }
+
+    function fetchAPI(path, params) {
+        return new Promise(function (resolve, reject) {
+            if (!TEMP_TOKEN) {
+                 showToast("Session not ready. Retrying...");
+                 setTimeout(function() {
+                    fetch('/api/get-token').then(function(res) { return res.json(); }).then(function(data) {
+                        TEMP_TOKEN = data.token;
+                        if (!TEMP_TOKEN) {
+                            reject(new Error("Could not retrieve session token."));
+                        } else {
+                            _fetchWithToken(path, params, resolve, reject);
+                        }
+                    });
+                 }, 500);
+            } else {
+                _fetchWithToken(path, params, resolve, reject);
+            }
+        });
+    }
+
+    function _fetchWithToken(path, params, resolve, reject) {
+        params.append('token', TEMP_TOKEN);
+        fetch(path + '?' + params.toString())
+            .then(function(response) {
+                if (!response.ok) {
+                    response.json().catch(function() { return {}; }).then(function(data) {
+                        reject(new Error('API Error: ' + (data.message || response.statusText)));
+                    });
+                } else {
+                    resolve(response.json());
+                }
+            })
+            .catch(function(err) {
+                reject(new Error('Network error: ' + err.message));
+            });
+    }
+    
+    var isIPAddress = function(input) { return /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(input) || /\[?([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}\]?/.test(input); };
+    var isDomain = function(input) { return /^(?!-)[A-Za-z0-9-]+([\-\.]{1}[a-z0-9]+)*\.[A-Za-z]{2,6}$/.test(input); };
+    var isIPRange = function(input) { return /^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\/(\d{1,2})$/.test(input) || /^(\d{1,3}\.\d{1,3}\.\d{1,3}\.)(\d{1,3})-(\d{1,3})$/.test(input); };
+
+    function parseIPRange(rangeInput) {
+        var ips = [];
+        var cidrMatch = rangeInput.match(/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\/(\d{1,2})$/);
+        var rangeMatch = rangeInput.match(/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.)(\d{1,3})-(\d{1,3})$/);
+
+        if (cidrMatch) {
+            var baseIp = cidrMatch[1];
+            var mask = cidrMatch[2];
+            if (parseInt(mask) === 24) {
+                var prefix = baseIp.substring(0, baseIp.lastIndexOf('.'));
+                for (var i = 0; i <= 255; i++) {
+                    ips.push(prefix + '.' + i);
+                }
+            } else {
+                 showToast('Only /24 CIDR masks are supported. Skipping ' + rangeInput);
+            }
+        } else if (rangeMatch) {
+            var prefix = rangeMatch[1];
+            var startOctetStr = rangeMatch[2];
+            var endOctetStr = rangeMatch[3];
+            var startOctet = parseInt(startOctetStr);
+            var endOctet = parseInt(endOctetStr);
+            if (!isNaN(startOctet) && !isNaN(endOctet) && startOctet <= endOctet && startOctet >= 0 && endOctet <= 255) {
+                for (var i = startOctet; i <= endOctet; i++) {
+                    ips.push(prefix + '.' + i);
+                }
+            }
+        }
+        return ips;
+    }
+
+    async function checkInputs() {
+        if (isChecking) return;
+        toggleCheckButton(true);
+
+        var mainInputValue = document.getElementById('mainInput').value;
+        var rangeInputValue = document.getElementById('rangeInput').value;
+        var mainLines = mainInputValue.split(/[\\n,;\\s]+/).map(function(s) { return s.trim(); }).filter(Boolean);
+        var rangeLines = rangeInputValue.split('\\n').map(function(s) { return s.trim(); }).filter(Boolean);
+
+        if (mainLines.length === 0 && rangeLines.length === 0) {
+            showToast('Please enter something to check.');
+            toggleCheckButton(false);
+            return;
+        }
+
+        document.getElementById('result').innerHTML = '';
+        document.getElementById('rangeResultCard').style.display = 'none';
+        
+        var mainPromise = processMainInput(mainLines);
+        var rangePromise = processRangeInput(rangeLines);
+        
+        try {
+            await Promise.all([mainPromise, rangePromise]);
+        } catch (e) {
+            showToast('An error occurred during processing.');
+            console.error(e);
+        } finally {
+            toggleCheckButton(false);
+        }
+    }
+
+    async function processMainInput(lines) {
+        if (lines.length === 0) return;
+        var resultDiv = document.getElementById('result');
+        var checkPromises = lines.map(async function(line) {
+            if (isDomain(line.split(':')[0])) {
+                await checkAndDisplayDomain(line, resultDiv);
+            } else if (isIPAddress(line.split(':')[0].replace(/[\\[\\]]/g, ''))) {
+                await checkAndDisplaySingleIP(line, resultDiv);
+            } else {
+                showToast('Unrecognized format in main box: ' + line);
+            }
+        });
+        await Promise.all(checkPromises);
+    }
+    
+    async function checkAndDisplaySingleIP(proxyip, parentElement) {
+        var resultCard = document.createElement('div');
+        resultCard.classList.add('result-card');
+        resultCard.innerHTML = '<p style="text-align:center; color: var(--text-light);">Checking ' + proxyip + '...</p>';
+        parentElement.appendChild(resultCard);
+        
+        try {
+            var data = await fetchAPI('/api/check', new URLSearchParams({ proxyip: proxyip }));
+            if (data.success) {
+                var ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: data.proxyIP }));
+                resultCard.classList.add('result-success');
+                resultCard.innerHTML = '<h3>✅ Valid Proxy IP</h3>' +
+                    '<p><strong>📍 IP Address:</strong> ' + createCopyButton(data.proxyIP) + '</p>' +
+                    '<p><strong>🌍 Country:</strong> ' + (ipInfo.country || 'N/A') + '</p>' +
+                    '<p><strong>🌐 AS:</strong> ' + (ipInfo.as || 'N/A') + '</p>' +
+                    '<p><strong>🔌 Port:</strong> ' + data.portRemote + '</p>';
+            } else {
+                resultCard.classList.add('result-error');
+                resultCard.innerHTML = '<h3>❌ Invalid Proxy IP</h3>' +
+                    '<p><strong>📍 IP Address:</strong> ' + createCopyButton(proxyip) + '</p>' +
+                    '<p><strong>Error:</strong> ' + (data.error || 'Check failed.') + '</p>';
+            }
+        } catch (error) {
+            resultCard.classList.add('result-error');
+            resultCard.innerHTML = '<h3>❌ Error</h3><p>' + error.message + '</p>';
+        }
+    }
+
+    async function checkAndDisplayDomain(domain, parentElement) {
+        var resultCard = document.createElement('div');
+        resultCard.classList.add('result-card', 'result-warning');
+        resultCard.innerHTML = '<p style="text-align:center; color: var(--text-light);">Resolving ' + domain + '...</p>';
+        parentElement.appendChild(resultCard);
+
+        try {
+            var resolveData = await fetchAPI('/api/resolve', new URLSearchParams({ domain: domain }));
+            var ips = resolveData.ips;
+
+            resultCard.innerHTML = '<h3>🔍 Results for ' + createCopyButton(domain) + ' (' + ips.length + ' IPs found)</h3>' +
+                                    '<div class="domain-ip-list"></div>';
+            var ipListDiv = resultCard.querySelector('.domain-ip-list');
+            ipCheckResults.clear();
+
+            var successCount = 0;
+            var checkPromises = ips.map(async function(ip, index) {
+                var ipItem = document.createElement('div');
+                ipItem.className = 'ip-item';
+                ipItem.innerHTML = '<div>' + createCopyButton(ip) + '</div><span id="domain-ip-status-' + index + '">🔄</span>';
+                ipListDiv.appendChild(ipItem);
+                
+                try {
+                    var data = await fetchAPI('/api/check', new URLSearchParams({ proxyip: ip }));
+                    if (data.success) {
+                        document.getElementById('domain-ip-status-' + index).textContent = '✅';
+                        successCount++;
+                    } else {
+                        document.getElementById('domain-ip-status-' + index).textContent = '❌';
+                    }
+                } catch(e) {
+                    document.getElementById('domain-ip-status-' + index).textContent = '⚠️';
+                }
+            });
+
+            await Promise.all(checkPromises);
+
+            resultCard.classList.remove('result-warning');
+            if (successCount === 0) {
+                 resultCard.classList.add('result-error');
+            } else if (successCount === ips.length) {
+                 resultCard.classList.add('result-success');
+            }
+        } catch (error) {
+            resultCard.className = 'result-card result-error';
+            resultCard.innerHTML = '<h3>❌ Error resolving ' + domain + '</h3><p>' + error.message + '</p>';
+        }
+    }
+
+    async function processRangeInput(lines) {
+        if (lines.length === 0) return;
+
+        var rangeResultCard = document.getElementById('rangeResultCard');
+        var summaryDiv = document.getElementById('rangeResultSummary');
+        var listDiv = document.getElementById('successfulRangeIPsList');
+        var copyBtn = document.getElementById('copyRangeBtn');
+
+        rangeResultCard.style.display = 'block';
+        listDiv.innerHTML = '';
+        summaryDiv.innerHTML = 'Total Tested: 0 | Total Successful: 0';
+        copyBtn.style.display = 'none';
+        rangeSuccessfulIPs = [];
+
+        var totalChecked = 0;
+        var allIPsToTest = [];
+        lines.forEach(function(line) {
+            if (isIPRange(line)) {
+                allIPsToTest.push.apply(allIPsToTest, parseIPRange(line));
+            } else {
+                showToast('Invalid range format: ' + line);
+            }
+        });
+        allIPsToTest = [...new Set(allIPsToTest)];
+        if (allIPsToTest.length === 0) {
+            rangeResultCard.style.display = 'none';
+            return;
+        }
+
+        var batchSize = 10;
+        for (var i = 0; i < allIPsToTest.length; i += batchSize) {
+            var batch = allIPsToTest.slice(i, i + batchSize);
+            var checkPromises = batch.map(async function(ip) {
+                try {
+                    var data = await fetchAPI('/api/check', new URLSearchParams({ proxyip: ip }));
+                    if (data.success) {
+                        rangeSuccessfulIPs.push(ip);
+                    }
+                } catch (e) { console.error('Failed to check range IP ' + ip + ':', e); }
+                finally { totalChecked++; }
+            });
+            await Promise.all(checkPromises);
+            summaryDiv.innerHTML = 'Total Tested: ' + totalChecked + ' / ' + allIPsToTest.length + ' | Total Successful: ' + rangeSuccessfulIPs.length;
+            updateSuccessfulRangeIPsDisplay();
+        }
+
+        if (rangeSuccessfulIPs.length > 0) {
+            copyBtn.style.display = 'inline-block';
+        }
+    }
+
+    function updateSuccessfulRangeIPsDisplay() {
+        var listDiv = document.getElementById('successfulRangeIPsList');
+        if (rangeSuccessfulIPs.length === 0) {
+            listDiv.innerHTML = '<p style="text-align:center; color: var(--text-light);">No successful IPs found in range(s).</p>';
+            return;
+        }
+        listDiv.innerHTML = rangeSuccessfulIPs.map(function(ip) { return '<div class="ip-item"><span>' + ip + '</span></div>'; }).join('');
+    }
+  </script>
 </body>
 </html>`;
-}
+    }
