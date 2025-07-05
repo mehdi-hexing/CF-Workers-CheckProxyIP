@@ -186,7 +186,7 @@ export default {
     temporaryTOKEN = await doubleHash(hostname + timestampForToken + userAgent);
     permanentTOKEN = env.TOKEN || temporaryTOKEN;
 
-    if (path.toLowerCase().startsWith('/proxyip/') || path.toLowerCase().startsWith('/iprange/')) {
+    if (path.toLowerCase().startsWith('/proxyip/')) {
         const ips_string = path.substring(path.indexOf('/', 1) + 1);
         const allIPs = ips_string.split(',').map(ip => ip.trim()).filter(Boolean);
 
@@ -794,4 +794,4 @@ function generateMainHTML(faviconURL) {
   </script>
 </body>
 </html>`;
-          }
+        }
