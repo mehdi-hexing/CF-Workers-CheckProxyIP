@@ -97,7 +97,7 @@ async function resolveDomain(domain) {
     if (ips.length === 0) throw new Error('No A or AAAA records found for this domain.');
     return ips;
   } catch (error) {
-    throw new Error(`DNS resolution failed: ${error.message}`);
+    throw new Error('DNS resolution failed: ' + error.message);
   }
 }
 
@@ -107,13 +107,13 @@ function generateSimpleResultHTML(title, successfulResults) {
     if (successfulResults.length > 0) {
         successfulResults.forEach(result => {
             allIPs.push(result.check.proxyIP);
-            resultsHTML += `
-            <div class="result-box">
-                <p><strong>IP Address:</strong> <code>${result.check.proxyIP}</code></p>
-                <p><strong>Port:</strong> ${result.check.portRemote}</p>
-                <p><strong>Country:</strong> ${result.info.country || 'N/A'}</p>
-                <p><strong>AS:</strong> ${result.info.as || 'N/A'}</p>
-            </div>`;
+            resultsHTML += 
+            '<div class="result-box">' +
+                '<p><strong>IP Address:</strong> <code>' + result.check.proxyIP + '</code></p>' +
+                '<p><strong>Port:</strong> ' + result.check.portRemote + '</p>' +
+                '<p><strong>Country:</strong> ' + (result.info.country || 'N/A') + '</p>' +
+                '<p><strong>AS:</strong> ' + (result.info.as || 'N/A') + '</p>' +
+            '</div>';
         });
     } else {
         resultsHTML = '<p>No successful proxies found.</p>';
@@ -218,7 +218,7 @@ export default {
         try {
             const response = await fetch(targetUrl, { headers: {'User-Agent': 'ProxyCheckerWorker/1.0'} });
             if (!response.ok) {
-                return new Response(`Failed to fetch the URL: ${response.statusText}`, { status: response.status });
+                throw new Error('Failed to fetch the URL: ' + response.statusText);
             }
             const text = await response.text();
             const ipRegex = /(\[?([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}\]?)|((?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))/g;
@@ -236,11 +236,11 @@ export default {
                 return { check, info };
             }));
             
-            const html = generateSimpleResultHTML(`Results for File: <a href="${targetUrl}" target="_blank" rel="noopener noreferrer">${targetUrl}</a>`, successfulResultsWithInfo);
+            const html = generateSimpleResultHTML('Results for File: <a href="' + targetUrl + '" target="_blank" rel="noopener noreferrer">' + targetUrl + '</a>', successfulResultsWithInfo);
             return new Response(html, { headers: { 'Content-Type': 'text/html;charset=UTF-8' } });
 
         } catch (error) {
-            return new Response(`An error occurred: ${error.message}`, { status: 500 });
+            return new Response('An error occurred: ' + error.message, { status: 500 });
         }
     }
     
@@ -286,7 +286,7 @@ export default {
             let ip = url.searchParams.get('ip') || request.headers.get('CF-Connecting-IP');
             if (!ip) return new Response('IP parameter not provided', { status: 400 });
             if (ip.includes('[')) ip = ip.replace(/\[|\]/g, '');
-            const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,message,query,country,countryCode,as&lang=en`);
+            const response = await fetch('http://ip-api.com/json/' + ip + '?fields=status,message,query,country,countryCode,as&lang=en');
             const data = await response.json();
             return new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } });
         }
@@ -601,10 +601,10 @@ function generateMainHTML(faviconURL) {
             if (parseInt(mask) === 24) {
                 const prefix = baseIp.substring(0, baseIp.lastIndexOf('.'));
                 for (let i = 0; i <= 255; i++) {
-                    ips.push(`${prefix}.${i}`);
+                    ips.push(prefix + '.' + i);
                 }
             } else {
-                 showToast(`Only /24 CIDR masks are supported. Skipping ${rangeInput}.`);
+                 showToast('Only /24 CIDR masks are supported. Skipping ' + rangeInput);
             }
         } else if (rangeMatch) {
             const [, prefix, startOctetStr, endOctetStr] = rangeMatch;
@@ -612,7 +612,7 @@ function generateMainHTML(faviconURL) {
             const endOctet = parseInt(endOctetStr);
             if (!isNaN(startOctet) && !isNaN(endOctet) && startOctet <= endOctet && startOctet >= 0 && endOctet <= 255) {
                 for (let i = startOctet; i <= endOctet; i++) {
-                    ips.push(prefix + i);
+                    ips.push(prefix + '.' + i);
                 }
             }
         }
@@ -662,24 +662,24 @@ function generateMainHTML(faviconURL) {
         const resolvePromises = [];
         const domains = lines.filter(line => isDomain(line.split(':')[0]));
         
-        summaryHeader.innerHTML = `<h3>Proxy IP Test Results:</h3>`;
+        summaryHeader.innerHTML = '<h3>Proxy IP Test Results:</h3>';
         if (domains.length > 0) {
-            summaryHeader.innerHTML += `<p style="margin-bottom: 5px;"><strong>Domains being tested:</strong></p>
-                                        <div style="padding-left: 15px; margin-bottom: 10px;">${domains.map(d => `<code>${d}</code>`).join('<br>')}</div>`;
+            summaryHeader.innerHTML += '<p style="margin-bottom: 5px;"><strong>Domains being tested:</strong></p>' +
+                                        '<div style="padding-left: 15px; margin-bottom: 10px;">' + domains.map(d => '<code>' + d + '</code>').join('<br>') + '</div>';
         }
         
         lines.forEach(line => {
             if (isDomain(line.split(':')[0])) {
                 resolvePromises.push(
                     resolveDomain(line).catch(err => {
-                        showToast(`Could not resolve ${line}.`);
+                        showToast('Could not resolve ' + line);
                         return [];
                     })
                 );
             } else if (isIPAddress(line.split(':')[0].replace(/[\\[\\]]/g, ''))) {
                  allIPsToTest.push(line);
             } else {
-                 showToast(`Unrecognized format in main box: ${line}`);
+                 showToast('Unrecognized format in main box: ' + line);
             }
         });
 
@@ -692,7 +692,7 @@ function generateMainHTML(faviconURL) {
         ipCountSpan.style.borderTop = '1px solid var(--border-color)';
         ipCountSpan.style.paddingTop = '15px';
         ipCountSpan.style.marginTop = '15px';
-        ipCountSpan.innerHTML = `Found ${allIPsToTest.length} unique IPs to test...`;
+        ipCountSpan.innerHTML = 'Found ' + allIPsToTest.length + ' unique IPs to test...';
         summaryHeader.appendChild(ipCountSpan);
 
         const checkPromises = allIPsToTest.map(async (ip) => {
@@ -702,16 +702,16 @@ function generateMainHTML(faviconURL) {
                     const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: data.proxyIP }));
                     const successBox = document.createElement('div');
                     successBox.classList.add('result-success-box');
-                    successBox.innerHTML = `
-                        <p><strong>IP Address:</strong> ${createCopyButton(data.proxyIP)}</p>
-                        <p><strong>Country:</strong> ${ipInfo.country || 'N/A'}</p>
-                        <p><strong>AS:</strong> ${ipInfo.as || 'N/A'}</p>
-                        <p><strong>Port:</strong> ${data.portRemote}</p>`;
+                    successBox.innerHTML = 
+                        '<p><strong>IP Address:</strong> ' + createCopyButton(data.proxyIP) + '</p>' +
+                        '<p><strong>Country:</strong> ' + (ipInfo.country || 'N/A') + '</p>' +
+                        '<p><strong>AS:</strong> ' + (ipInfo.as || 'N/A') + '</p>' +
+                        '<p><strong>Port:</strong> ' + data.portRemote + '</p>';
                     summaryBody.appendChild(successBox);
                     mainSuccessfulIPs.push(data.proxyIP);
                 }
             } catch (e) {
-                console.error(`Failed to check IP ${ip}:`, e);
+                console.error('Failed to check IP ' + ip + ':', e);
             }
         });
 
@@ -751,7 +751,7 @@ function generateMainHTML(faviconURL) {
             if (isIPRange(line)) {
                 allIPsToTest.push(...parseIPRange(line));
             } else {
-                showToast(`Invalid range format: ${line}`);
+                showToast('Invalid range format: ' + line);
             }
         });
         allIPsToTest = [...new Set(allIPsToTest)];
@@ -769,11 +769,11 @@ function generateMainHTML(faviconURL) {
                     if (data.success) {
                         rangeSuccessfulIPs.push(ip);
                     }
-                } catch (e) { console.error(`Failed to check range IP ${ip}:`, e); }
+                } catch (e) { console.error('Failed to check range IP ' + ip + ':', e); }
                 finally { totalChecked++; }
             });
             await Promise.all(checkPromises);
-            summaryDiv.innerHTML = `Total Tested: ${totalChecked} / ${allIPsToTest.length} | Total Successful: ${rangeSuccessfulIPs.length}`;
+            summaryDiv.innerHTML = 'Total Tested: ' + totalChecked + ' / ' + allIPsToTest.length + ' | Total Successful: ' + rangeSuccessfulIPs.length;
             updateSuccessfulRangeIPsDisplay();
         }
 
@@ -788,9 +788,9 @@ function generateMainHTML(faviconURL) {
             listDiv.innerHTML = '<p style="text-align:center; color: var(--text-light);">No successful IPs found in range(s).</p>';
             return;
         }
-        listDiv.innerHTML = rangeSuccessfulIPs.map(ip => `<div class="ip-item"><span>${ip}</span></div>`).join('');
+        listDiv.innerHTML = rangeSuccessfulIPs.map(ip => '<div class="ip-item"><span>' + ip + '</span></div>').join('');
     }
   </script>
 </body>
 </html>`;
-                                  }
+                       }
