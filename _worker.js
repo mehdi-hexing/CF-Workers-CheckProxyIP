@@ -446,11 +446,11 @@ function generateMainHTML(faviconURL) {
       <div class="form-section">
         <label for="mainInput" class="form-label">Enter IPs or Domains (one per line):</label>
         <div class="input-wrapper">
-          <textarea id="mainInput" class="form-input" rows="4" placeholder="127.0.0.1 or nima.nscl.ir" autocomplete="off"></textarea>
+          <textarea id="mainInput" class="form-input" rows="4" placeholder="e.g.,&#10;1.1.1.1&#10;example.com" autocomplete="off"></textarea>
         </div>
         <label for="rangeInput" class="form-label">Enter IP Range(s) (one per line):</label>
         <div class="input-wrapper">
-          <textarea id="rangeInput" class="form-input" rows="3" placeholder="127.0.0.0/24 or 127.0.0.0-255" autocomplete="off"></textarea>
+          <textarea id="rangeInput" class="form-input" rows="3" placeholder="e.g.,&#10;1.1.1.0/24&#10;2.2.2.0-255" autocomplete="off"></textarea>
         </div>
         <button id="checkBtn" class="btn-primary">
           <span style="display: flex; align-items: center; justify-content: center;">
@@ -651,7 +651,7 @@ function generateMainHTML(faviconURL) {
         mainSuccessfulIPs = [];
         const resultDiv = document.getElementById('result');
         const summaryCard = document.createElement('div');
-        summaryCard.className = 'result-card result-warning';
+        summaryCard.classList.add('result-card', 'result-warning');
         resultDiv.appendChild(summaryCard);
         
         const summaryHeader = document.createElement('div');
@@ -702,7 +702,7 @@ function generateMainHTML(faviconURL) {
                 if (data.success) {
                     const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: data.proxyIP }));
                     const successBox = document.createElement('div');
-                    successBox.className = 'result-success-box';
+                    successBox.classList.add('result-success-box');
                     successBox.innerHTML = `
                         <p><strong>IP Address:</strong> ${createCopyButton(data.proxyIP)}</p>
                         <p><strong>Country:</strong> ${ipInfo.country || 'N/A'}</p>
@@ -721,7 +721,7 @@ function generateMainHTML(faviconURL) {
         if (mainSuccessfulIPs.length > 0) {
             summaryCard.classList.remove('result-warning');
             const copyAllBtn = document.createElement('button');
-            copyAllBtn.className = 'btn-secondary';
+            copyAllBtn.classList.add('btn-secondary');
             copyAllBtn.style.marginTop = '15px';
             copyAllBtn.textContent = 'Copy All Successful IPs';
             copyAllBtn.onclick = () => copyToClipboard(mainSuccessfulIPs.join('\\n'), null, "All IPs copied!");
@@ -794,4 +794,4 @@ function generateMainHTML(faviconURL) {
   </script>
 </body>
 </html>`;
-  }
+          }
