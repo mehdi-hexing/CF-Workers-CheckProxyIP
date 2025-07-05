@@ -582,7 +582,7 @@ function generateMainHTML(faviconURL) {
         const response = await fetch(path + '?' + params.toString());
         if (!response.ok) {
            const data = await response.json().catch(() => ({}));
-           throw new Error(`API Error: ${data.message || response.statusText}`);
+           throw new Error('API Error: ' + (data.message || response.statusText));
         }
         return response.json();
     }
@@ -793,4 +793,4 @@ function generateMainHTML(faviconURL) {
   </script>
 </body>
 </html>`;
-    }
+                                  }
