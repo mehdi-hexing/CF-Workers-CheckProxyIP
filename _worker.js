@@ -309,6 +309,7 @@ export default {
 };
 
 function generateMainHTML(faviconURL) {
+  var year = new Date().getFullYear();
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -449,7 +450,7 @@ function generateMainHTML(faviconURL) {
        <p><code>/file/https://path.to/your/file.txt</code> - Server-side check for IPs in a remote file.</p>
     </div>
     <footer class="footer">
-      <p>© ${new Date().getFullYear()} Proxy IP Checker - By <strong>mehdi-hexing</strong></p>
+      <p>© ${year} Proxy IP Checker - By <strong>mehdi-hexing</strong></p>
     </footer>
   </div>
   <div id="toast" class="toast"></div>
@@ -559,41 +560,24 @@ function generateMainHTML(faviconURL) {
         if(spinner) spinner.style.display = checking ? 'inline-block' : 'none';
     }
 
-    function fetchAPI(path, params) {
-        return new Promise(function (resolve, reject) {
-            if (!TEMP_TOKEN) {
-                 showToast("Session not ready. Retrying...");
-                 setTimeout(function() {
-                    fetch('/api/get-token').then(function(res) { return res.json(); }).then(function(data) {
-                        TEMP_TOKEN = data.token;
-                        if (!TEMP_TOKEN) {
-                            reject(new Error("Could not retrieve session token."));
-                        } else {
-                            _fetchWithToken(path, params, resolve, reject);
-                        }
-                    });
-                 }, 500);
-            } else {
-                _fetchWithToken(path, params, resolve, reject);
-            }
-        });
-    }
-
-    function _fetchWithToken(path, params, resolve, reject) {
+    async function fetchAPI(path, params) {
+        if (!TEMP_TOKEN) {
+             showToast("Session not ready. Retrying...");
+             await new Promise(function(resolve) { setTimeout(resolve, 500); });
+             if (!TEMP_TOKEN) {
+                var res = await fetch('/api/get-token');
+                var data = await res.json();
+                TEMP_TOKEN = data.token;
+             }
+             if (!TEMP_TOKEN) throw new Error("Could not retrieve session token.");
+        }
         params.append('token', TEMP_TOKEN);
-        fetch(path + '?' + params.toString())
-            .then(function(response) {
-                if (!response.ok) {
-                    response.json().catch(function() { return {}; }).then(function(data) {
-                        reject(new Error('API Error: ' + (data.message || response.statusText)));
-                    });
-                } else {
-                    resolve(response.json());
-                }
-            })
-            .catch(function(err) {
-                reject(new Error('Network error: ' + err.message));
-            });
+        var response = await fetch(path + '?' + params.toString());
+        if (!response.ok) {
+           var data = await response.json().catch(function() { return {}; });
+           throw new Error('API Error: ' + (data.message || response.statusText));
+        }
+        return response.json();
     }
     
     var isIPAddress = function(input) { return /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(input) || /\[?([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}\]?/.test(input); };
@@ -816,4 +800,4 @@ function generateMainHTML(faviconURL) {
   </script>
 </body>
 </html>`;
-    }
+        }
