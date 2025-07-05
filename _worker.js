@@ -1,7 +1,5 @@
 import { connect } from "cloudflare:sockets";
 
-let temporaryTOKEN, permanentTOKEN;
-
 // --- Helper Functions (Server-Side) ---
 
 async function doubleHash(text) {
@@ -108,43 +106,43 @@ export default {
     const hostname = url.hostname;
 
     const timestampForToken = Math.ceil(new Date().getTime() / (1000 * 60 * 31));
-    temporaryTOKEN = await doubleHash(hostname + timestampForToken + userAgent);
-    permanentTOKEN = env.TOKEN || temporaryTOKEN;
-    
+    const temporaryTOKEN = await doubleHash(hostname + timestampForToken + userAgent);
+    const permanentTOKEN = env.TOKEN;
+
     if (path.toLowerCase().startsWith('/api/')) {
         const isTokenValid = () => {
-            if (!env.TOKEN) return true;
+            if (!permanentTOKEN) return true;
             const providedToken = url.searchParams.get('token');
             return providedToken === permanentTOKEN || providedToken === temporaryTOKEN;
         };
         
         if (path.toLowerCase() === '/api/get-token') {
-            return new Response(JSON.stringify({ token: temporaryTOKEN }), { headers: { "Content-Type": "application/json" } });
+            return new Response(JSON.stringify({ token: temporaryTOKEN }), { headers: { "Content-Type": "application/json", 'Access-Control-Allow-Origin': '*' } });
         }
 
         if (!isTokenValid()) {
             return new Response(JSON.stringify({ status: "error", message: "Invalid TOKEN" }), {
-                status: 403, headers: { "Content-Type": "application/json" }
+                status: 403, headers: { "Content-Type": "application/json", 'Access-Control-Allow-Origin': '*' }
             });
         }
 
+        const apiHeaders = { "Content-Type": "application/json", 'Access-Control-Allow-Origin': '*' };
+
         if (path.toLowerCase() === '/api/check') {
-            if (!url.searchParams.has('proxyip')) return new Response('Missing proxyip parameter', { status: 400 });
             const proxyIPInput = url.searchParams.get('proxyip');
+            if (!proxyIPInput) return new Response('Missing proxyip parameter', { status: 400 });
             const result = await checkProxyIP(proxyIPInput);
-            return new Response(JSON.stringify(result), {
-                status: result.success ? 200 : 502, headers: { "Content-Type": "application/json" }
-            });
+            return new Response(JSON.stringify(result), { status: result.success ? 200 : 502, headers: apiHeaders });
         }
         
         if (path.toLowerCase() === '/api/resolve') {
-            if (!url.searchParams.has('domain')) return new Response('Missing domain parameter', { status: 400 });
             const domain = url.searchParams.get('domain');
+            if (!domain) return new Response('Missing domain parameter', { status: 400 });
             try {
                 const ips = await resolveDomain(domain);
-                return new Response(JSON.stringify({ success: true, domain, ips }), { headers: { "Content-Type": "application/json" } });
+                return new Response(JSON.stringify({ success: true, domain, ips }), { headers: apiHeaders });
             } catch (error) {
-                return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: { "Content-Type": "application/json" } });
+                return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: apiHeaders });
             }
         }
 
@@ -154,10 +152,10 @@ export default {
             if (ip.includes('[')) ip = ip.replace(/\[|\]/g, '');
             const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,message,query,country,countryCode,as&lang=en`);
             const data = await response.json();
-            return new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } });
+            return new Response(JSON.stringify(data), { headers: apiHeaders });
         }
         
-        return new Response('API route not found', { status: 404 });
+        return new Response('API route not found', { status: 404, headers: apiHeaders });
     }
     
     const faviconURL = env.ICO || 'https://cf-assets.www.cloudflare.com/dzlvafdwdttg/19kSkLSfWtDcspvQI5pit4/c5630cf25d589a0de91978ca29486259/performance-acceleration-bolt.svg';
@@ -166,7 +164,21 @@ export default {
         return Response.redirect(faviconURL, 302);
     }
     
-    return new Response(generateMainHTML(faviconURL), {
+    let pathValue = url.searchParams.get('pathInput') || null;
+    
+    // Check for path-based routing and redirect
+    if (!pathValue) {
+        const pathSegments = path.toLowerCase().split('/').filter(Boolean);
+        if (pathSegments.length >= 2 && (pathSegments[0] === 'proxyip' || pathSegments[0] === 'iprange')) {
+            pathValue = decodeURIComponent(path.substring(path.toLowerCase().indexOf(pathSegments[1]))).trim();
+            const newUrl = new URL(request.url);
+            newUrl.pathname = '/';
+            newUrl.searchParams.set('pathInput', pathValue);
+            return Response.redirect(newUrl.toString(), 302);
+        }
+    }
+
+    return new Response(generateMainHTML(faviconURL, pathValue), {
       headers: { "content-type": "text/html;charset=UTF-8" }
     });
   }
@@ -174,7 +186,8 @@ export default {
 
 // --- HTML Generation ---
 
-function generateMainHTML(faviconURL) {
+function generateMainHTML(faviconURL, pathValue) {
+  // Pass pathValue to the client-side script
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -219,9 +232,7 @@ function generateMainHTML(faviconURL) {
       --result-warning-bg: #5a4b1e;
       --result-warning-text: #fff8dd;
     }
-    html {
-      height: 100%;
-    }
+    html { height: 100%; }
     body { 
       font-family: 'Inter', sans-serif; 
       background: var(--bg-gradient);
@@ -230,13 +241,9 @@ function generateMainHTML(faviconURL) {
       line-height: 1.6; margin:0; padding:0; min-height: 100%; 
       display: flex; flex-direction: column; align-items: center;
       transition: background 0.3s ease, color 0.3s ease;
+      overflow-x: hidden;
     }
-    .container { 
-        max-width: 800px; 
-        width: 100%;
-        padding: 20px;
-        box-sizing: border-box;
-    }
+    .container { max-width: 800px; width: 100%; padding: 20px; box-sizing: border-box; }
     .header { text-align: center; margin-bottom: 30px; }
     .main-title { font-size: 2.2rem; font-weight: 700; color: #fff; text-shadow: 1px 1px 3px rgba(0,0,0,0.2); }
     .card { background: var(--bg-primary); border-radius: var(--border-radius); padding: 25px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); margin-bottom: 25px; transition: background 0.3s ease; }
@@ -245,7 +252,9 @@ function generateMainHTML(faviconURL) {
     .input-wrapper { width: 100%; max-width: 450px; margin-bottom: 15px; }
     .form-input { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.95rem; box-sizing: border-box; background-color: var(--bg-secondary); color: var(--text-primary); transition: border-color 0.3s ease, background-color 0.3s ease; }
     textarea.form-input { min-height: 60px; resize: vertical; }
-    .btn-primary { background: linear-gradient(135deg, var(--primary-color), #2980b9); color: white; padding: 12px 25px; border: none; border-radius: var(--border-radius-sm); font-size: 1rem; font-weight: 500; cursor: pointer; width: 100%; max-width: 450px; box-sizing: border-box; }
+    .btn { padding: 12px 25px; border: none; border-radius: var(--border-radius-sm); font-size: 1rem; font-weight: 500; cursor: pointer; text-align: center; display: inline-flex; align-items: center; justify-content: center; transition: background-color 0.2s ease, transform 0.1s ease; }
+    .btn:active { transform: translateY(1px); }
+    .btn-primary { background: linear-gradient(135deg, var(--primary-color), #2980b9); color: white; width: 100%; max-width: 450px; }
     .btn-primary:disabled { background: #bdc3c7; cursor: not-allowed; }
     .btn-secondary { background-color: var(--bg-secondary); color: var(--text-primary); padding: 8px 15px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.9rem; cursor: pointer; }
     .loading-spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 1s linear infinite; display: none; margin-left: 8px; }
@@ -261,40 +270,14 @@ function generateMainHTML(faviconURL) {
     #successfulRangeIPsList, .domain-ip-list { border: 1px solid var(--border-color); padding: 10px; border-radius: var(--border-radius-sm); max-height: 250px; overflow-y: auto;}
     .ip-item { padding:8px 5px; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; }
     #successfulRangeIPsList .ip-item:last-child, .domain-ip-list .ip-item:last-child { border-bottom: none; }
-    .api-docs { margin-top: 30px; padding: 25px; background: var(--bg-primary); border-radius: var(--border-radius); transition: background 0.3s ease; }
-    .api-docs p { background-color: var(--bg-secondary); border: 1px solid var(--border-color); padding: 10px; border-radius: 4px; margin-bottom: 10px; word-break: break-all; transition: background 0.3s ease, border-color 0.3s ease;}
-    .api-docs p code { background: none; padding: 0;}
-    .footer { text-align: center; padding: 20px; margin-top: 30px; color: rgba(255,255,255,0.8); font-size: 0.85em; border-top: 1px solid rgba(255,255,255,0.1); }
+    .footer { text-align: center; padding: 20px; margin-top: auto; color: rgba(255,255,255,0.8); font-size: 0.85em; border-top: 1px solid rgba(255,255,255,0.1); width:100%; box-sizing: border-box; }
     .github-corner svg { fill: var(--primary-color); color: #fff; position: fixed; top: 0; border: 0; right: 0; z-index: 1000;}
     body.dark-mode .github-corner svg { fill: #fff; color: #151513; }
     .octo-arm{transform-origin:130px 106px}
     .github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}
     @keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}
-    
-    #theme-toggle {
-      position: fixed;
-      bottom: 25px;
-      right: 25px;
-      z-index: 1002;
-      background: var(--bg-primary);
-      border: 1px solid var(--border-color);
-      width: 48px;
-      height: 48px;
-      border-radius: 50%;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-      transition: background-color 0.3s, border-color 0.3s;
-    }
-    #theme-toggle svg {
-      width: 24px;
-      height: 24px;
-      stroke: var(--text-primary);
-      transition: all 0.3s ease;
-    }
+    #theme-toggle { position: fixed; bottom: 25px; right: 25px; z-index: 1002; background: var(--bg-primary); border: 1px solid var(--border-color); width: 48px; height: 48px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; box-shadow: 0 4px 8px rgba(0,0,0,0.15); transition: background-color 0.3s, border-color 0.3s; }
+    #theme-toggle svg { width: 24px; height: 24px; stroke: var(--text-primary); transition: all 0.3s ease; }
     body:not(.dark-mode) #theme-toggle .sun-icon { display: none; }
     body.dark-mode #theme-toggle .moon-icon { display: none; }
     #theme-toggle .moon-icon { fill: var(--text-primary); }
@@ -309,13 +292,13 @@ function generateMainHTML(faviconURL) {
     </header>
     <div class="card">
       <div class="form-section">
-        <label for="proxyip" class="form-label">Enter Single IP/Domain or multiple IPs (one per line):</label>
+        <label for="proxyip" class="form-label">Enter Proxy IPs or Domain (one per line):</label>
         <div class="input-wrapper">
-          <textarea id="proxyip" class="form-input" rows="3" placeholder="e.g., 1.2.3.4:443, example.com or multiple IPs" autocomplete="off"></textarea>
+          <textarea id="proxyip" class="form-input" rows="3" placeholder="127.0.0.1 or nima.nscl.ir" autocomplete="off"></textarea>
         </div>
-        <label for="proxyipRangeRows" class="form-label">Enter IP Range(s) (one per line):</label>
+        <label for="proxyipRangeRows" class="form-label">Enter IP Range's (one per line):</label>
         <div class="input-wrapper">
-          <textarea id="proxyipRangeRows" class="form-input" rows="3" placeholder="1.2.3.0/24\\n1.2.3.1-255" autocomplete="off"></textarea>
+          <textarea id="proxyipRangeRows" class="form-input" rows="3" placeholder="127.0.0.0 or 127.0.0.0-255" autocomplete="off"></textarea>
         </div>
         <button id="checkBtn" class="btn-primary">
           <span style="display: flex; align-items: center; justify-content: center;">
@@ -326,17 +309,14 @@ function generateMainHTML(faviconURL) {
       </div>
       <div id="result" class="result-section"></div>
       <div id="rangeResultCard" class="result-card result-section" style="display:none;">
-         <h4>Successful IPs in Range:</h4>
+         <h4>Successful IPs:</h4>
          <div id="rangeResultSummary" style="margin-bottom: 15px;"></div>
          <div id="successfulRangeIPsList" style="margin-bottom: 15px; max-height: 200px; overflow-y: auto;"></div>
-         <button class="btn-secondary" id="copyRangeBtn" style="display:none;">Copy Successful IPs</button>
+         <div id="result-buttons" style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+            <button class="btn-secondary" id="copyRangeBtn" style="display:none;">Copy All Successful IPs</button>
+            <button class="btn-secondary" id="downloadResultsBtn" style="display:none;">Download Successful IPs</button>
+         </div>
       </div>
-    </div>
-    <div class="api-docs">
-       <h3 style="margin-bottom:15px; text-align:center;">API Documentation</h3>
-       <p><code>GET /api/check?proxyip=YOUR_IP&token=YOUR_TOKEN</code></p>
-       <p><code>GET /api/resolve?domain=YOUR_DOMAIN&token=YOUR_TOKEN</code></p>
-       <p><code>GET /api/ip-info?ip=TARGET_IP&token=YOUR_TOKEN</code></p>
     </div>
     <footer class="footer">
       <p>© ${new Date().getFullYear()} Proxy IP Checker - By <strong>mehdi-hexing</strong></p>
@@ -360,53 +340,58 @@ function generateMainHTML(faviconURL) {
     </svg>
   </button>
   <script>
+    // --- Client-Side Application Logic ---
     let isChecking = false;
     let TEMP_TOKEN = '';
-    let currentSuccessfulRangeIPs = [];
-    let ipCheckResults = new Map();
+    let allSuccessfulIPs = []; 
+    let wasInputFromURL = false; 
 
     document.addEventListener('DOMContentLoaded', () => {
+        // --- Event Listeners ---
         fetch('/api/get-token').then(res => res.json()).then(data => { TEMP_TOKEN = data.token; });
-        
         document.getElementById('checkBtn').addEventListener('click', checkInputs);
-        
         document.getElementById('copyRangeBtn').addEventListener('click', () => {
-            if (currentSuccessfulRangeIPs.length > 0) {
-                const textToCopy = currentSuccessfulRangeIPs.map(item => item.ip).join('\\n');
-                copyToClipboard(textToCopy, null, "All successful IPs copied!");
+            if (allSuccessfulIPs.length > 0) {
+                const textToCopy = allSuccessfulIPs.map(item => item.ip).join('\\n');
+                copyToClipboard(textToCopy, document.getElementById('copyRangeBtn'), "All successful IPs copied!");
             }
         });
-
+        document.getElementById('downloadResultsBtn').addEventListener('click', () => {
+             if (allSuccessfulIPs.length > 0) {
+                downloadSuccessfulIPs(allSuccessfulIPs.map(item => item.ip));
+            }
+        });
         document.body.addEventListener('click', event => {
             if (event.target.classList.contains('copy-btn')) {
                 const text = event.target.getAttribute('data-copy');
                 if (text) copyToClipboard(text, event.target, "Copied!");
             }
         });
-
+        
+        // --- Theme Management ---
         const themeToggleBtn = document.getElementById('theme-toggle');
         const body = document.body;
-        
         const applyTheme = (theme) => {
-            if (theme === 'dark') {
-                body.classList.add('dark-mode');
-            } else {
-                body.classList.remove('dark-mode');
-            }
+            if (theme === 'dark') body.classList.add('dark-mode');
+            else body.classList.remove('dark-mode');
         };
-
         const savedTheme = localStorage.getItem('theme');
-        if (savedTheme) {
-            applyTheme(savedTheme);
-        } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-            applyTheme('dark');
-        }
-
+        if (savedTheme) applyTheme(savedTheme);
+        else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) applyTheme('dark');
         themeToggleBtn.addEventListener('click', () => {
             body.classList.toggle('dark-mode');
             localStorage.setItem('theme', body.classList.contains('dark-mode') ? 'dark' : 'light');
         });
+
+        // --- Handle Input From URL ---
+        const pathInput = \`${pathValue || ''}\`;
+        if (pathInput) {
+            wasInputFromURL = true;
+            handlePathBasedInput(pathInput);
+        }
     });
+
+    // --- UI & Helper Functions ---
 
     function showToast(message, duration = 3000) {
         const toast = document.getElementById('toast');
@@ -420,138 +405,155 @@ function generateMainHTML(faviconURL) {
             const originalText = element ? element.textContent : '';
             if (element) element.textContent = 'Copied ✓';
             showToast(successMessage);
-            if (element) setTimeout(() => { element.textContent = originalText; }, 2000);
+            if (element && originalText) setTimeout(() => { element.textContent = originalText; }, 2000);
         }).catch(err => showToast('Copy failed. Please copy manually.'));
     }
 
-    function createCopyButton(text) {
-        return '<span class="copy-btn" data-copy="' + text + '">' + text + '</span>';
+    function downloadSuccessfulIPs(ips) {
+        const text = ips.join('\\n');
+        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'successful_ips.txt';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('Downloading successful IPs...');
     }
 
     function toggleCheckButton(checking) {
         isChecking = checking;
         const checkBtn = document.getElementById('checkBtn');
+        const spinner = checkBtn.querySelector('.loading-spinner');
         checkBtn.disabled = checking;
+        if(spinner) spinner.style.display = checking ? 'inline-block' : 'none';
         checkBtn.querySelector('.btn-text').style.display = checking ? 'none' : 'inline-block';
-        checkBtn.querySelector('.loading-spinner').style.display = checking ? 'inline-block' : 'none';
     }
+
+    // --- API & Core Logic ---
 
     async function fetchAPI(path, params) {
         if (!TEMP_TOKEN) {
              showToast("Session not ready. Retrying...");
              await new Promise(resolve => setTimeout(resolve, 500));
-             if (!TEMP_TOKEN) {
-                await fetch('/api/get-token').then(res => res.json()).then(data => { TEMP_TOKEN = data.token; });
-             }
+             if (!TEMP_TOKEN) await fetch('/api/get-token').then(res => res.json()).then(data => { TEMP_TOKEN = data.token; });
              if (!TEMP_TOKEN) throw new Error("Could not retrieve session token.");
         }
-        params.append('token', TEMP_TOKEN);
-        const response = await fetch(path + '?' + params.toString());
+        const apiParams = new URLSearchParams(params);
+        apiParams.append('token', TEMP_TOKEN);
+        const response = await fetch(path + '?' + apiParams.toString());
         const data = await response.json();
         if (!response.ok && typeof data.success === 'undefined') {
             throw new Error('API Error: ' + (data.message || response.statusText));
         }
         return data;
     }
-
-    function isIPAddress(input) {
-      const ipv4Pattern = "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$";
-      const ipv6Pattern = "^\\\\[?([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}\\\\]?$";
-      return new RegExp(ipv4Pattern).test(input) || new RegExp(ipv6Pattern).test(input);
-    }
     
+    function isCIDRRange(input) { return /^(\\d{1,3}\\.){3}\\d{1,3}\\/(\\d{1,2})$/.test(input); }
+    function isSimpleRange(input) { return /^(\\d{1,3}\\.){3}\\d{1,3}-\\d{1,3}$/.test(input); }
+
+    async function handlePathBasedInput(value) {
+        showToast("Processing input from URL...");
+        const singleIpTextarea = document.getElementById('proxyip');
+        const rangeIpTextarea = document.getElementById('proxyipRangeRows');
+        let items = value.split(',').map(s => s.trim()).filter(Boolean);
+        
+        let allValues = [];
+        for (const item of items) {
+            if (item.toLowerCase().startsWith('http')) {
+                try {
+                    showToast(\`Fetching content from remote list...\`);
+                    const response = await fetch(item);
+                    if (!response.ok) throw new Error(\`Failed to fetch \${item}\`);
+                    const text = await response.text();
+                    
+                    if (item.toLowerCase().endsWith('.txt') || item.toLowerCase().endsWith('.csv')) {
+                        const filteredLines = text.split(/\\r?\\n/).map(s => s.trim()).filter(line => !line.includes(':') || line.includes(':443'));
+                        allValues.push(...filteredLines);
+                        showToast(\`Found and filtered \${filteredLines.length} IPs (port 443 or no port) from file.\`);
+                    } else {
+                        allValues.push(...text.split(/\\r?\\n/).map(s => s.trim()).filter(Boolean));
+                    }
+                } catch (error) {
+                    showToast(\`Error fetching list: \${error.message}\`);
+                }
+            } else {
+                allValues.push(item);
+            }
+        }
+        
+        let singleIPs = [], rangeIPs = [];
+        allValues.forEach(val => {
+            if (isCIDRRange(val) || isSimpleRange(val)) rangeIPs.push(val);
+            else singleIPs.push(val);
+        });
+
+        singleIpTextarea.value = singleIPs.join('\\n');
+        rangeIpTextarea.value = rangeIPs.join('\\n');
+        
+        if (singleIPs.length > 0 || rangeIPs.length > 0) {
+            await checkInputs();
+        }
+    }
+
     async function checkInputs() {
         if (isChecking) return;
-        
-        const singleIpInputEl = document.getElementById('proxyip');
-        const rangeIpTextareaEl = document.getElementById('proxyipRangeRows');
-        const singleInputs = singleIpInputEl.value.trim().split('\\n').map(s => s.trim()).filter(s => s);
-        const individualRangeQueries = rangeIpTextareaEl.value.split('\\n').map(s => s.trim()).filter(s => s);
-
-        if (singleInputs.length === 0 && individualRangeQueries.length === 0) {
-            showToast('Please enter a single IP/Domain or at least one IP Range.');
-            return;
-        }
-
         toggleCheckButton(true);
-        
+
         document.getElementById('result').innerHTML = '';
         const rangeResultCard = document.getElementById('rangeResultCard');
         rangeResultCard.style.display = 'none';
-        currentSuccessfulRangeIPs = [];
-        let totalChecked = 0, totalSuccess = 0;
+        allSuccessfulIPs = []; 
 
         try {
-            if (singleInputs.length > 1) {
-                await checkAndDisplayMultipleIPs(singleInputs);
-            } else if (singleInputs.length === 1) {
-                const singleIpToTest = singleInputs[0];
-                if (isIPAddress(singleIpToTest.split(':')[0].replace(/[\\[\\]]/g, ''))) {
-                    await checkAndDisplaySingleIP(singleIpToTest);
-                } else {
-                    await checkAndDisplayDomain(singleIpToTest);
-                }
+            const singleIpInputEl = document.getElementById('proxyip');
+            const rangeIpTextareaEl = document.getElementById('proxyipRangeRows');
+            const singleInputs = singleIpInputEl.value.trim().split('\\n').map(s => s.trim()).filter(s => s);
+            const individualRangeQueries = rangeIpTextareaEl.value.trim().split('\\n').map(s => s.trim()).filter(s => s);
+
+            if (singleInputs.length === 0 && individualRangeQueries.length === 0) {
+                showToast('Please enter a single IP/Domain or at least one IP Range.');
+                toggleCheckButton(false);
+                return;
+            }
+            
+            if (singleInputs.length > 0) {
+                 await checkAndDisplayMultipleIPs(singleInputs);
             }
 
             if (individualRangeQueries.length > 0) {
-                const rangeResultSummary = document.getElementById('rangeResultSummary');
-                const successfulIPsListDiv = document.getElementById('successfulRangeIPsList');
-                const copyRangeBtn = document.getElementById('copyRangeBtn');
-                
-                rangeResultCard.style.display = 'block';
-                successfulIPsListDiv.innerHTML = '<p style="text-align:center; color: var(--text-light);">Processing...</p>';
-                rangeResultSummary.innerHTML = 'Total Tested: 0 | Total Successful: 0';
-                
-                for (const rangeQuery of individualRangeQueries) {
-                    const ipsInRange = parseIPRange(rangeQuery);
-                    if (ipsInRange.length === 0) {
-                        showToast('Invalid format for range: "' + rangeQuery + '". Skipping.');
-                        continue;
-                    }
-                    
-                    const batchSize = 10;
-                    for (let i = 0; i < ipsInRange.length; i += batchSize) {
-                        const batch = ipsInRange.slice(i, i + batchSize);
-                        const promises = batch.map(async (ip) => {
-                            try {
-                                const data = await fetchAPI('/api/check', new URLSearchParams({ proxyip: ip + ':443' }));
-                                totalChecked++;
-                                if (data && data.success) {
-                                    totalSuccess++;
-                                    const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: data.proxyIP }));
-                                    currentSuccessfulRangeIPs.push({ ip: data.proxyIP, countryCode: ipInfo.countryCode || 'N/A' });
-                                }
-                            } catch (e) {
-                                totalChecked++;
-                                console.error('Error checking ' + ip + ':', e);
-                            }
-                        });
-                        await Promise.all(promises);
-                        rangeResultSummary.innerHTML = 'Total Tested: ' + totalChecked + ' | Total Successful: ' + totalSuccess;
-                        updateSuccessfulRangeIPsDisplay();
-                    }
-                }
-                if(currentSuccessfulRangeIPs.length > 0) {
-                    copyRangeBtn.style.display = 'inline-block';
-                }
+                 await checkAndDisplayRanges(individualRangeQueries);
             }
+
         } catch (error) {
             showToast(error.message);
             console.error("Check failed:", error);
         } finally {
             toggleCheckButton(false);
+            if (allSuccessfulIPs.length > 0) {
+                document.getElementById('copyRangeBtn').style.display = 'inline-block';
+                if (wasInputFromURL) {
+                    document.getElementById('downloadResultsBtn').style.display = 'inline-block';
+                }
+                // Final update to the result list after all checks
+                updateSuccessfulRangeIPsDisplay(allSuccessfulIPs);
+                document.getElementById('rangeResultCard').style.display = 'block';
+                document.getElementById('rangeResultSummary').textContent = \`Total successful IPs from all inputs: \${allSuccessfulIPs.length}\`;
+            }
         }
     }
     
-    function updateSuccessfulRangeIPsDisplay() {
+    function updateSuccessfulRangeIPsDisplay(successfulIPs) {
         const listDiv = document.getElementById('successfulRangeIPsList');
-        if (currentSuccessfulRangeIPs.length === 0) {
+        if (!successfulIPs || successfulIPs.length === 0) {
             listDiv.innerHTML = '<p style="text-align:center; color: var(--text-light);">No successful IPs found.</p>';
             return;
         }
         let html = '<div class="ip-grid">';
-        currentSuccessfulRangeIPs.forEach(item => {
-            html += '<div class="ip-item"><span>' + item.ip + '</span><span style="font-weight: 500;">' + item.countryCode + '</span></div>';
+        successfulIPs.forEach(item => {
+            html += '<div class="ip-item"><span>' + item.ip + '</span><span style="font-weight: 500;">' + (item.countryCode || 'N/A') + '</span></div>';
         });
         html += '</div>';
         listDiv.innerHTML = html;
@@ -561,125 +563,10 @@ function generateMainHTML(faviconURL) {
       if (!ipInfo || ipInfo.status !== 'success') { return ''; }
       const country = ipInfo.country || 'N/A';
       const as = ipInfo.as || 'N/A';
-      if (isShort) return ' (' + country + ' - ' + as.substring(0, 15) + '...)';
-      return '<span style="font-size:0.85em; color: var(--text-light);">' + country + ' - ' + as + '</span>';
+      if (isShort) return \` (\${country} - \${as.substring(0, 15)}...)\`;
+      return \`<span style="font-size:0.85em; color: var(--text-light);">(\${country} - \${as})</span>\`;
     }
 
-    async function getIPInfoWithIndex(ip, index) {
-      try {
-        const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: ip.split(':')[0].replace(/[\\[\\]]/g, '') }));
-        const infoElement = document.getElementById('multi-info-' + index) || document.getElementById('domain-ip-info-' + index);
-        if (infoElement) infoElement.innerHTML = formatIPInfo(ipInfo, true);
-      } catch (error) { console.warn("Could not get IP info for " + ip, error); }
-    }
-
-    async function checkDomainIPWithIndex(ip, port, index) {
-      try {
-        const ipToTest = ip.includes(':') || ip.includes(']:') ? ip : (ip + ':' + port);
-        const result = await fetchAPI('/api/check', new URLSearchParams({ proxyip: ipToTest }));
-        ipCheckResults.set(ipToTest, result);
-        
-        const statusIcon = document.getElementById('domain-ip-status-' + index);
-        if (statusIcon) statusIcon.textContent = result.success ? '✅' : '❌';
-      } catch (error) {
-        const statusIcon = document.getElementById('domain-ip-status-' + index);
-        if (statusIcon) statusIcon.textContent = '⚠️';
-        ipCheckResults.set(ip, { success: false, error: error.message });
-      }
-    }
-
-    async function checkAndDisplaySingleIP(proxyip) {
-        const resultDiv = document.getElementById('result');
-        resultDiv.innerHTML = '<p style="text-align:center; color: var(--text-light);">Checking...</p>';
-        try {
-            const data = await fetchAPI('/api/check', new URLSearchParams({ proxyip: proxyip }));
-            let ipInfoHTML = '';
-            if (data && data.success) {
-                const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: data.proxyIP }));
-                const country = ipInfo.country || 'N/A';
-                const as = ipInfo.as || 'N/A';
-                ipInfoHTML = '<p><strong>🌍 Country:</strong> ' + country + '</p>' +
-                             '<p><strong>🌐 AS:</strong> ' + as + '</p>';
-                resultDiv.innerHTML =
-                    '<div class="result-card result-success">' +
-                        '<h3>✅ ProxyIP Valid</h3>' +
-                        '<p><strong>📍 IP Address:</strong> ' + createCopyButton(data.proxyIP) + '</p>' +
-                        ipInfoHTML +
-                        '<p><strong>🔌 Port:</strong> ' + data.portRemote + '</p>' +
-                        '<p><strong>🕒 Check Time:</strong> ' + new Date(data.timestamp).toLocaleString() + '</p>' +
-                    '</div>';
-            } else {
-                 resultDiv.innerHTML =
-                    '<div class="result-card result-error">' +
-                        '<h3>❌ ProxyIP Invalid</h3>' +
-                        '<p><strong>📍 IP Address:</strong> ' + createCopyButton(proxyip) + '</p>' +
-                        '<p><strong>Error:</strong> ' + (data.error || 'Check failed.') + '</p>' +
-                        '<p><strong>🕒 Check Time:</strong> ' + new Date(data.timestamp).toLocaleString() + '</p>' +
-                    '</div>';
-            }
-        } catch (error) {
-            resultDiv.innerHTML = '<div class="result-card result-error"><h3>❌ Error</h3><p>' + error.message + '</p></div>';
-        }
-    }
-
-    async function checkAndDisplayDomain(domain) {
-        const resultDiv = document.getElementById('result');
-        ipCheckResults.clear();
-        resultDiv.innerHTML = '<p style="text-align:center; color: var(--text-light);">Resolving domain...</p>';
-        try {
-            let port = 443;
-            let cleanDomain = domain;
-            if (domain.includes(':') && !domain.startsWith('[')) {
-                const parts = domain.split(':');
-                if(parts.length === 2) {
-                   cleanDomain = parts[0];
-                   const parsedPort = parseInt(parts[1]);
-                   if(!isNaN(parsedPort)) port = parsedPort;
-                }
-            }
-
-            const resolveData = await fetchAPI('/api/resolve', new URLSearchParams({ domain: cleanDomain }));
-            if (!resolveData.success || !resolveData.ips || resolveData.ips.length === 0) {
-                throw new Error(resolveData.error || 'Could not resolve domain to any IPs.');
-            }
-            const ips = resolveData.ips;
-            
-            let html = '<div class="result-card result-warning">' +
-                '<h3 id="domain-result-header">🔍 Resolving & Checking Domain...</h3>' +
-                '<p><strong>🌐 Domain:</strong> ' + createCopyButton(domain) + '</p>' +
-                '<p><strong>🔌 Default Port for Test:</strong> ' + port + '</p>' +
-                '<p><strong>📋 IPs Found:</strong> ' + ips.length + '</p>' +
-                '<div class="domain-ip-list">';
-            ips.forEach((ip, index) => {
-                html += '<div class="ip-item" id="domain-ip-item-' + index + '">' +
-                        '<div>' + createCopyButton(ip) + '<span id="domain-ip-info-' + index + '"></span></div>' +
-                        '<span id="domain-ip-status-' + index + '">🔄</span>' +
-                        '</div>';
-            });
-            html += '</div></div>';
-            resultDiv.innerHTML = html;
-
-            const checkPromises = ips.map((ip, index) => checkDomainIPWithIndex(ip, port, index));
-            const ipInfoPromises = ips.map((ip, index) => getIPInfoWithIndex(ip, index));
-            
-            await Promise.all([...checkPromises, ...ipInfoPromises]);
-
-            const successCount = Array.from(ipCheckResults.values()).filter(r => r.success).length;
-            const resultCardHeader = document.getElementById('domain-result-header');
-
-            if (successCount === ips.length) {
-                resultCardHeader.textContent = '✅ All Domain IPs Valid';
-            } else if (successCount === 0) {
-                resultCardHeader.textContent = '❌ All Domain IPs Invalid';
-            } else {
-                resultCardHeader.textContent = '⚠️ Some Domain IPs Valid (' + successCount + '/' + ips.length + ')';
-            }
-
-        } catch (error) {
-            resultDiv.innerHTML = '<div class="result-card result-error"><h3>❌ Error</h3><p>' + error.message + '</p></div>';
-        }
-    }
-    
     async function checkAndDisplayMultipleIPs(inputs) {
         const resultDiv = document.getElementById('result');
         let html = '<div class="result-card result-warning">' +
@@ -694,6 +581,7 @@ function generateMainHTML(faviconURL) {
         });
         html += '</div></div>';
         resultDiv.innerHTML = html;
+        resultDiv.classList.add('show');
 
         const checkPromises = inputs.map(async (input, index) => {
             const statusSpan = document.getElementById('multi-ip-status-' + index);
@@ -702,8 +590,11 @@ function generateMainHTML(faviconURL) {
                 const result = await fetchAPI('/api/check', new URLSearchParams({ proxyip: input }));
                 if (result.success) {
                     statusSpan.textContent = '✅';
+                    allSuccessfulIPs.push({ ip: result.proxyIP, countryCode: '' }); // Add to global list
                     const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: result.proxyIP }));
                     infoSpan.innerHTML = formatIPInfo(ipInfo, true);
+                    const successItem = allSuccessfulIPs.find(item => item.ip === result.proxyIP);
+                    if(successItem) successItem.countryCode = ipInfo.countryCode || 'N/A';
                 } else {
                     statusSpan.textContent = '❌';
                 }
@@ -714,16 +605,65 @@ function generateMainHTML(faviconURL) {
         await Promise.all(checkPromises);
     }
     
+    async function checkAndDisplayRanges(rangeQueries) {
+        const rangeResultSummary = document.getElementById('rangeResultSummary');
+        const successfulIPsListDiv = document.getElementById('successfulRangeIPsList');
+        
+        let totalChecked = 0, totalSuccess = 0, totalToTest = 0;
+        const allIPsToTest = [];
+
+        for (const rangeQuery of rangeQueries) {
+             const ipsInRange = parseIPRange(rangeQuery);
+             if (ipsInRange.length > 0) {
+                 allIPsToTest.push(...ipsInRange);
+             } else if (rangeQuery) {
+                 showToast(\`Invalid or unsupported range: "\${rangeQuery}". Skipping.\`);
+             }
+        }
+        
+        if(allIPsToTest.length === 0) return;
+
+        successfulIPsListDiv.innerHTML = '<p style="text-align:center; color: var(--text-light);">Processing...</p>';
+        
+        const batchSize = 10;
+        for (let i = 0; i < allIPsToTest.length; i += batchSize) {
+            const batch = allIPsToTest.slice(i, i + batchSize);
+            const promises = batch.map(async (ip) => {
+                try {
+                    const data = await fetchAPI('/api/check', new URLSearchParams({ proxyip: ip + ':443' }));
+                    totalChecked++;
+                    if (data && data.success) {
+                        totalSuccess++;
+                        const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: data.proxyIP }));
+                        allSuccessfulIPs.push({ ip: data.proxyIP, countryCode: ipInfo.countryCode || 'N/A' });
+                    }
+                } catch (e) {
+                    totalChecked++;
+                    console.error('Error checking ' + ip + ':', e);
+                }
+            });
+            await Promise.all(promises);
+            rangeResultSummary.innerHTML = \`Tested: \${totalChecked}/\${allIPsToTest.length} | Total Successful: \${totalSuccess}\`;
+            updateSuccessfulRangeIPsDisplay(allSuccessfulIPs);
+        }
+        rangeResultSummary.innerHTML = \`Range test complete. \${totalSuccess} of \${totalChecked} IPs were successful.\`;
+    }
+    
     function parseIPRange(rangeInput) {
+        // Only supports /23 and /24 for now, as requested
         const ips = [];
-        const cidrPattern = new RegExp(/^(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})\\/24$/);
+        const cidrPattern = new RegExp(/^(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})\\/(23|24)$/);
         const simpleRangePattern = new RegExp(/^(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.)(\\d{1,3})-(\\d{1,3})$/);
 
         if (cidrPattern.test(rangeInput)) {
-            const baseIp = rangeInput.split('/')[0];
-            const baseParts = baseIp.split('.');
-            for (let i = 1; i <= 255; i++) {
-                ips.push(baseParts[0] + '.' + baseParts[1] + '.' + baseParts[2] + '.' + i);
+            const parts = rangeInput.split('/');
+            const baseIp = parts[0];
+            const prefix = parseInt(parts[1]);
+            const numHosts = Math.pow(2, 32 - prefix);
+            let ipLong = ipToLong(baseIp) & (0xFFFFFFFF << (32 - prefix));
+
+            for(let i=0; i < numHosts; i++) {
+                ips.push(longToIp(ipLong + i));
             }
         } else if (simpleRangePattern.test(rangeInput)) {
             const match = rangeInput.match(simpleRangePattern);
@@ -741,4 +681,4 @@ function generateMainHTML(faviconURL) {
   </script>
 </body>
 </html>`;
-      }
+    }
