@@ -579,7 +579,7 @@ function generateMainHTML(faviconURL) {
              if (!TEMP_TOKEN) throw new Error("Could not retrieve session token.");
         }
         params.append('token', TEMP_TOKEN);
-        const response = await fetch(`${path}?${params.toString()}`);
+        const response = await fetch(path + '?' + params.toString());
         if (!response.ok) {
            const data = await response.json().catch(() => ({}));
            throw new Error(`API Error: ${data.message || response.statusText}`);
