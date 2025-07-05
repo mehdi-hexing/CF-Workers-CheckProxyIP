@@ -1,29 +1,29 @@
 import { connect } from "cloudflare:sockets";
 
-var temporaryTOKEN, permanentTOKEN;
+let temporaryTOKEN, permanentTOKEN;
 
 // --- Server-Side Helper Functions ---
 
-async function doubleHash(text) {
-  var encoder = new TextEncoder();
-  var firstHashBuffer = await crypto.subtle.digest('MD5', encoder.encode(text));
-  var firstHashArray = Array.from(new Uint8Array(firstHashBuffer));
-  var firstHex = firstHashArray.map(function(byte) { return byte.toString(16).padStart(2, '0'); }).join('');
-  var secondHashBuffer = await crypto.subtle.digest('MD5', encoder.encode(firstHex.slice(7, 27)));
-  var secondHashArray = Array.from(new Uint8Array(secondHashBuffer));
-  var secondHex = secondHashArray.map(function(byte) { return byte.toString(16).padStart(2, '0'); }).join('');
+const doubleHash = async (text) => {
+  const encoder = new TextEncoder();
+  const firstHashBuffer = await crypto.subtle.digest('MD5', encoder.encode(text));
+  const firstHashArray = Array.from(new Uint8Array(firstHashBuffer));
+  const firstHex = firstHashArray.map(byte => byte.toString(16).padStart(2, '0')).join('');
+  const secondHashBuffer = await crypto.subtle.digest('MD5', encoder.encode(firstHex.slice(7, 27)));
+  const secondHashArray = Array.from(new Uint8Array(secondHashBuffer));
+  const secondHex = secondHashArray.map(byte => byte.toString(16).padStart(2, '0')).join('');
   return secondHex.toLowerCase();
-}
+};
 
-async function checkProxyIP(proxyIPWithPort) {
-  var portRemote = 443;
-  var hostToCheck = proxyIPWithPort;
+const checkProxyIP = async (proxyIPWithPort) => {
+  let portRemote = 443;
+  let hostToCheck = proxyIPWithPort;
 
   if (proxyIPWithPort.includes(':') && !proxyIPWithPort.startsWith('[')) {
-    var parts = proxyIPWithPort.split(':');
+    const parts = proxyIPWithPort.split(':');
     if (parts.length === 2 && (parts[0].includes('.') || parts[0].includes(']'))) {
       hostToCheck = parts[0];
-      var parsedPort = parseInt(parts[1]);
+      const parsedPort = parseInt(parts[1], 10);
       if (!isNaN(parsedPort)) {
         portRemote = parsedPort;
       }
@@ -31,25 +31,25 @@ async function checkProxyIP(proxyIPWithPort) {
   }
 
   try {
-    var tcpSocket = connect({ hostname: hostToCheck, port: portRemote });
-    var writer = tcpSocket.writable.getWriter();
-    var httpRequest = 'GET /cdn-cgi/trace HTTP/1.1\r\nHost: speed.cloudflare.com\r\nUser-Agent: CheckProxyIP/CloudflareWorker\r\nConnection: close\r\n\r\n';
+    const tcpSocket = connect({ hostname: hostToCheck, port: portRemote });
+    const writer = tcpSocket.writable.getWriter();
+    const httpRequest = 'GET /cdn-cgi/trace HTTP/1.1\r\nHost: speed.cloudflare.com\r\nUser-Agent: CheckProxyIP/CloudflareWorker\r\nConnection: close\r\n\r\n';
     await writer.write(new TextEncoder().encode(httpRequest));
     writer.releaseLock();
 
-    var reader = tcpSocket.readable.getReader();
-    var responseData = new Uint8Array(0);
-    var timeoutPromise = new Promise(function(resolve) { setTimeout(function() { resolve({ done: true, timeout: true }); }, 5000); });
+    const reader = tcpSocket.readable.getReader();
+    let responseData = new Uint8Array(0);
+    const timeoutPromise = new Promise(resolve => setTimeout(() => resolve({ done: true, timeout: true }), 5000));
 
     while (true) {
-      var result = await Promise.race([reader.read(), timeoutPromise]);
+      const result = await Promise.race([reader.read(), timeoutPromise]);
       if (result.done) break;
       if (result.value) {
-        var newData = new Uint8Array(responseData.length + result.value.length);
+        const newData = new Uint8Array(responseData.length + result.value.length);
         newData.set(responseData);
         newData.set(result.value, responseData.length);
         responseData = newData;
-        var responseText = new TextDecoder().decode(responseData);
+        const responseText = new TextDecoder().decode(responseData);
         if (responseText.includes("\r\n\r\n") && (responseText.toLowerCase().includes("connection: close") || responseText.includes("content-length"))) {
           break;
         }
@@ -57,56 +57,52 @@ async function checkProxyIP(proxyIPWithPort) {
     }
     reader.releaseLock();
 
-    var responseText = new TextDecoder().decode(responseData);
-    var statusMatch = responseText.match(/^HTTP\/\d\.\d\s+(\d+)/i);
-    var statusCode = statusMatch ? parseInt(statusMatch[1]) : null;
-    var looksLikeCloudflare = responseText.toLowerCase().includes("cloudflare");
-    var isExpectedError = responseText.includes("plain HTTP request") || responseText.includes("400 Bad Request");
-    var hasSufficientBody = responseData.length > 50;
-    var isSuccessful = statusCode !== null && looksLikeCloudflare && isExpectedError && hasSufficientBody;
+    const responseText = new TextDecoder().decode(responseData);
+    const statusMatch = responseText.match(/^HTTP\/\d\.\d\s+(\d+)/i);
+    const statusCode = statusMatch ? parseInt(statusMatch[1], 10) : null;
+    const looksLikeCloudflare = responseText.toLowerCase().includes("cloudflare");
+    const isExpectedError = responseText.includes("plain HTTP request") || responseText.includes("400 Bad Request");
+    const hasSufficientBody = responseData.length > 50;
+    const isSuccessful = statusCode !== null && looksLikeCloudflare && isExpectedError && hasSufficientBody;
 
     await tcpSocket.close();
-    return { success: isSuccessful, proxyIP: hostToCheck, portRemote: portRemote, statusCode: statusCode, responseSize: responseData.length, timestamp: new Date().toISOString() };
+    return { success: isSuccessful, proxyIP: hostToCheck, portRemote, statusCode, responseSize: responseData.length, timestamp: new Date().toISOString() };
   } catch (error) {
-    return { success: false, proxyIP: hostToCheck, portRemote: portRemote, timestamp: new Date().toISOString(), error: error.message || error.toString() };
+    return { success: false, proxyIP: hostToCheck, portRemote, timestamp: new Date().toISOString(), error: error.message || error.toString() };
   }
-}
+};
 
-async function getIpInfo(ip) {
+const getIpInfo = async (ip) => {
     if (!ip) return {};
     if (ip.includes('[')) ip = ip.replace(/\[|\]/g, '');
-    var response = await fetch('http://ip-api.com/json/' + ip + '?fields=status,message,query,country,as&lang=en');
+    const response = await fetch('http://ip-api.com/json/' + ip + '?fields=status,message,query,country,as&lang=en');
     return response.json();
-}
+};
 
-async function resolveDomain(domain) {
+const resolveDomain = async (domain) => {
   domain = domain.includes(':') ? domain.split(':')[0] : domain;
   try {
-    var [ipv4Response, ipv6Response] = await Promise.all([
+    const [ipv4Response, ipv6Response] = await Promise.all([
       fetch('https://1.1.1.1/dns-query?name=' + domain + '&type=A', { headers: { 'Accept': 'application/dns-json' } }),
       fetch('https://1.1.1.1/dns-query?name=' + domain + '&type=AAAA', { headers: { 'Accept': 'application/dns-json' } })
     ]);
-    var [ipv4Data, ipv6Data] = await Promise.all([ipv4Response.json(), ipv6Response.json()]);
-    var ips = [];
-    if (ipv4Data.Answer) {
-      ips.push.apply(ips, ipv4Data.Answer.filter(function(r) { return r.type === 1; }).map(function(r) { return r.data; }));
-    }
-    if (ipv6Data.Answer) {
-      ips.push.apply(ips, ipv6Data.Answer.filter(function(r) { return r.type === 28; }).map(function(r) { return '[' + r.data + ']'; }));
-    }
+    const [ipv4Data, ipv6Data] = await Promise.all([ipv4Response.json(), ipv6Response.json()]);
+    const ips = [];
+    if (ipv4Data.Answer) ips.push(...ipv4Data.Answer.filter(r => r.type === 1).map(r => r.data));
+    if (ipv6Data.Answer) ips.push(...ipv6Data.Answer.filter(r => r.type === 28).map(r => '[' + r.data + ']'));
     if (ips.length === 0) throw new Error('No A or AAAA records found for this domain.');
     return ips;
   } catch (error) {
     throw new Error('DNS resolution failed: ' + error.message);
   }
-}
+};
 
 function generateSimpleResultHTML(title, successfulResults, showDownloadButton) {
-    var resultsHTML = '';
-    var allIPs = [];
+    let resultsHTML = '';
+    const allIPs = successfulResults.map(result => result.check.proxyIP);
+    
     if (successfulResults.length > 0) {
-        successfulResults.forEach(function(result) {
-            allIPs.push(result.check.proxyIP);
+        successfulResults.forEach(result => {
             resultsHTML +=
             '<div class="result-box">' +
                 '<p><strong>IP Address:</strong> <code>' + result.check.proxyIP + '</code></p>' +
@@ -119,89 +115,87 @@ function generateSimpleResultHTML(title, successfulResults, showDownloadButton) 
         resultsHTML = '<p>No successful proxies found.</p>';
     }
 
-    var downloadButtonHTML = showDownloadButton ? '<button class="btn btn-download" id="downloadBtn">Download .txt</button>' : '';
+    const downloadButtonHTML = showDownloadButton ? '<button class="btn btn-download" id="downloadBtn">Download .txt</button>' : '';
 
-    return '<!DOCTYPE html>' +
-    '<html lang="en">' +
-    '<head>' +
-      '<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Proxy Check Results</title>' +
-      '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">' +
-      '<style>' +
-        'body { font-family: \'Inter\', sans-serif; margin: 0; padding: 20px; background-color: #f4f7f9; color: #2c3e50; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; }' +
-        '.container { background-color: #fff; border-radius: 12px; padding: 30px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); max-width: 800px; width: 100%; box-sizing: border-box; }' +
-        'h1 { font-size: 1.8rem; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 15px; word-break: break-word; }' +
-        'h1 a { color: #3498db; text-decoration: none; } h1 a:hover { text-decoration: underline; }' +
-        '.actions { margin-bottom: 20px; display: flex; gap: 10px; }' +
-        '.btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; }' +
-        '.btn-copy { background-color: #3498db; color: white; }' +
-        '.btn-download { background-color: #2ecc71; color: white; }' +
-        '.result-box { border: 1px solid #d4edda; background-color: #fafffa; border-radius: 8px; padding: 15px; margin-bottom: 15px; }' +
-        '.result-box p { margin: 5px 0; word-break: break-all; }' +
-        '.toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 12px 20px; border-radius: 8px; z-index:1001; opacity:0; transition: opacity 0.3s, transform 0.3s; }' +
-        '.toast.show { opacity:1; }' +
-      '</style>' +
-    '</head>' +
-    '<body>' +
-      '<div class="container">' +
-        '<h1>' + title + '</h1>' +
-        '<div class="actions">' +
-          '<button class="btn btn-copy" id="copyBtn">Copy All</button>' +
-          downloadButtonHTML +
-        '</div>' +
-        '<div id="results-container">' + resultsHTML + '</div>' +
-        '<div id="toast" class="toast"></div>' +
-      '</div>' +
-      '<script>' +
-        'var allIPs = ' + JSON.stringify(allIPs) + ';' +
-        'document.getElementById("copyBtn").addEventListener("click", function() {' +
-            'if(allIPs.length === 0) return showToast("No IPs to copy.");' +
-            'navigator.clipboard.writeText(allIPs.join("\\n")).then(function() { showToast("All successful IPs copied!"); }).catch(function(err) { showToast("Failed to copy."); });' +
-        '});' +
-        'var downloadBtn = document.getElementById("downloadBtn");' +
-        'if (downloadBtn) {' +
-            'downloadBtn.addEventListener("click", function() {' +
-                'if(allIPs.length === 0) return showToast("No IPs to download.");' +
-                'var blob = new Blob([allIPs.join("\\n")], { type: "text/plain" });' +
-                'var url = URL.createObjectURL(blob);' +
-                'var a = document.createElement("a"); a.href = url; a.download = "successful_proxies.txt";' +
-                'document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);' +
-            '});' +
-        '}' +
-        'function showToast(message) {' +
-          'var toast = document.getElementById("toast");' +
-          'toast.textContent = message;' +
-          'toast.classList.add("show");' +
-          'setTimeout(function() { toast.classList.remove("show"); }, 2000);' +
-        '}' +
-      '</script>' +
-    '</body>' +
-    '</html>';
+    return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Proxy Check Results</title>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+      <style>
+        body { font-family: 'Inter', sans-serif; margin: 0; padding: 20px; background-color: #f4f7f9; color: #2c3e50; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; }
+        .container { background-color: #fff; border-radius: 12px; padding: 30px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); max-width: 800px; width: 100%; box-sizing: border-box; }
+        h1 { font-size: 1.8rem; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 15px; word-break: break-word; }
+        h1 a { color: #3498db; text-decoration: none; } h1 a:hover { text-decoration: underline; }
+        .actions { margin-bottom: 20px; display: flex; gap: 10px; }
+        .btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; }
+        .btn-copy { background-color: #3498db; color: white; }
+        .btn-download { background-color: #2ecc71; color: white; }
+        .result-box { border: 1px solid #d4edda; background-color: #fafffa; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
+        .result-box p { margin: 5px 0; word-break: break-all; }
+        .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 12px 20px; border-radius: 8px; z-index:1001; opacity:0; transition: opacity 0.3s, transform 0.3s; }
+        .toast.show { opacity:1; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>${title}</h1>
+        <div class="actions">
+          <button class="btn btn-copy" id="copyBtn">Copy All</button>
+          ${downloadButtonHTML}
+        </div>
+        <div id="results-container">${resultsHTML}</div>
+        <div id="toast" class="toast"></div>
+      </div>
+      <script>
+        var allIPs = ${JSON.stringify(allIPs)};
+        document.getElementById('copyBtn').addEventListener('click', function() {
+            if(allIPs.length === 0) return showToast('No IPs to copy.');
+            navigator.clipboard.writeText(allIPs.join('\\n')).then(function() { showToast('All successful IPs copied!'); }).catch(function(err) { showToast('Failed to copy.'); });
+        });
+        var downloadBtn = document.getElementById('downloadBtn');
+        if (downloadBtn) {
+            downloadBtn.addEventListener('click', function() {
+                if(allIPs.length === 0) return showToast('No IPs to download.');
+                var blob = new Blob([allIPs.join('\\n')], { type: 'text/plain' });
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement('a'); a.href = url; a.download = 'successful_proxies.txt';
+                document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+            });
+        }
+        function showToast(message) {
+          var toast = document.getElementById('toast');
+          toast.textContent = message;
+          toast.classList.add('show');
+          setTimeout(function() { toast.classList.remove('show'); }, 2000);
+        }
+      </script>
+    </body>
+    </html>`;
 }
-
-// --- Main Fetch Handler ---
 
 export default {
   async fetch(request, env, ctx) {
-    var url = new URL(request.url);
-    var path = url.pathname;
-    var userAgent = request.headers.get('User-Agent') || 'null';
-    var hostname = url.hostname;
+    const url = new URL(request.url);
+    const path = url.pathname;
+    const userAgent = request.headers.get('User-Agent') || 'null';
+    const hostname = url.hostname;
     
-    var timestampForToken = Math.ceil(new Date().getTime() / (1000 * 60 * 31));
-    temporaryTOKEN = await doubleHash(hostname + timestampForToken + userAgent);
+    temporaryTOKEN = await doubleHash(hostname + Math.ceil(new Date().getTime() / (1000 * 60 * 31)) + userAgent);
     permanentTOKEN = (env && env.TOKEN) ? env.TOKEN : temporaryTOKEN;
 
     if (path.toLowerCase().startsWith('/iprange/')) {
-        var range_string = path.substring(path.indexOf('/', 1) + 1);
-        var redirectUrl = new URL(request.url);
+        const range_string = path.substring(path.indexOf('/', 1) + 1);
+        const redirectUrl = new URL(request.url);
         redirectUrl.pathname = '/';
         redirectUrl.hash = '#/action/range/' + encodeURIComponent(range_string);
         return Response.redirect(redirectUrl.toString(), 302);
     }
     
     if (path.toLowerCase().startsWith('/proxyip/')) {
-        var ips_string = path.substring(path.indexOf('/', 1) + 1);
-        var redirectUrl = new URL(request.url);
+        const ips_string = path.substring(path.indexOf('/', 1) + 1);
+        const redirectUrl = new URL(request.url);
         redirectUrl.pathname = '/';
         redirectUrl.hash = '#/action/proxyip/' + encodeURIComponent(ips_string);
         return Response.redirect(redirectUrl.toString(), 302);
@@ -209,7 +203,7 @@ export default {
     
     if (path.toLowerCase().startsWith('/file/')) {
         try {
-            var targetUrl = request.url.substring(request.url.indexOf('/file/') + 6);
+            const targetUrl = request.url.substring(request.url.indexOf('/file/') + 6);
             if (!targetUrl || !targetUrl.startsWith('http')) {
                  return new Response('Invalid URL provided.', { status: 400 });
             }
@@ -217,28 +211,28 @@ export default {
                 return new Response('Invalid file type. Only .txt and .csv are supported.', { status: 400 });
             }
         
-            var response = await fetch(targetUrl, { headers: {'User-Agent': 'ProxyCheckerWorker/1.0'} });
+            const response = await fetch(targetUrl, { headers: {'User-Agent': 'ProxyCheckerWorker/1.0'} });
             if (!response.ok) {
                 throw new Error('Failed to fetch the URL: ' + response.statusText);
             }
-            var text = await response.text();
-            var ipRegex = /(\[?([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}\]?)|((?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))/g;
-            var allIPs = [...new Set(text.match(ipRegex) || [])];
+            const text = await response.text();
+            const ipRegex = /(\[?([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}\]?)|((?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))/g;
+            const allIPs = [...new Set(text.match(ipRegex) || [])];
 
-            var checkPromises = allIPs.map(function(ip) { return checkProxyIP(ip); });
-            var checkResults = await Promise.allSettled(checkPromises);
+            const checkPromises = allIPs.map(ip => checkProxyIP(ip));
+            const checkResults = await Promise.allSettled(checkPromises);
 
-            var successfulChecks = checkResults
-                .filter(function(result) { return result.status === 'fulfilled' && result.value.success; })
-                .map(function(result) { return result.value; });
+            const successfulChecks = checkResults
+                .filter(result => result.status === 'fulfilled' && result.value.success)
+                .map(result => result.value);
             
-            var successfulResultsWithInfo = await Promise.all(successfulChecks.map(async function(check) {
-                var info = await getIpInfo(check.proxyIP);
-                return { check: check, info: info };
+            const successfulResultsWithInfo = await Promise.all(successfulChecks.map(async (check) => {
+                const info = await getIpInfo(check.proxyIP);
+                return { check, info };
             }));
             
-            var title = 'Results for File: <a href="' + targetUrl + '" target="_blank" rel="noopener noreferrer">' + targetUrl + '</a>';
-            var html = generateSimpleResultHTML(title, successfulResultsWithInfo, true);
+            const title = 'Results for File: <a href="' + targetUrl + '" target="_blank" rel="noopener noreferrer">' + targetUrl + '</a>';
+            const html = generateSimpleResultHTML(title, successfulResultsWithInfo, true);
             return new Response(html, { headers: { 'Content-Type': 'text/html;charset=UTF-8' } });
 
         } catch (error) {
@@ -247,9 +241,9 @@ export default {
     }
     
     if (path.toLowerCase().startsWith('/api/')) {
-        var isTokenValid = function() {
-            if (!(env && env.TOKEN)) return true;
-            var providedToken = url.searchParams.get('token');
+        const isTokenValid = () => {
+            if (!env || !env.TOKEN) return true;
+            const providedToken = url.searchParams.get('token');
             return providedToken === permanentTOKEN || providedToken === temporaryTOKEN;
         };
         
@@ -265,9 +259,9 @@ export default {
 
         if (path.toLowerCase() === '/api/check') {
             if (!url.searchParams.has('proxyip')) return new Response('Missing proxyip parameter', { status: 400 });
-            var proxyIPInput = url.searchParams.get('proxyip');
-            var ipWithPort = proxyIPInput.includes(':') || proxyIPInput.includes(']:') ? proxyIPInput : '' + proxyIPInput + ':443';
-            var result = await checkProxyIP(ipWithPort);
+            const proxyIPInput = url.searchParams.get('proxyip');
+            const ipWithPort = proxyIPInput.includes(':') || proxyIPInput.includes(']:') ? proxyIPInput : proxyIPInput + ':443';
+            const result = await checkProxyIP(ipWithPort);
             return new Response(JSON.stringify(result), {
                 status: result.success ? 200 : 502, headers: { "Content-Type": "application/json" }
             });
@@ -275,10 +269,10 @@ export default {
         
         if (path.toLowerCase() === '/api/resolve') {
             if (!url.searchParams.has('domain')) return new Response('Missing domain parameter', { status: 400 });
-            var domain = url.searchParams.get('domain');
+            const domain = url.searchParams.get('domain');
             try {
-                var ips = await resolveDomain(domain);
-                return new Response(JSON.stringify({ success: true, domain: domain, ips: ips }), { headers: { "Content-Type": "application/json" } });
+                const ips = await resolveDomain(domain);
+                return new Response(JSON.stringify({ success: true, domain, ips }), { headers: { "Content-Type": "application/json" } });
             } catch (error) {
                 return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: { "Content-Type": "application/json" } });
             }
@@ -288,15 +282,15 @@ export default {
             let ip = url.searchParams.get('ip') || request.headers.get('CF-Connecting-IP');
             if (!ip) return new Response('IP parameter not provided', { status: 400 });
             if (ip.includes('[')) ip = ip.replace(/\[|\]/g, '');
-            var response = await fetch('http://ip-api.com/json/' + ip + '?fields=status,message,query,country,countryCode,as&lang=en');
-            var data = await response.json();
+            const response = await fetch('http://ip-api.com/json/' + ip + '?fields=status,message,query,country,countryCode,as&lang=en');
+            const data = await response.json();
             return new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } });
         }
         
         return new Response('API route not found', { status: 404 });
     }
     
-    var faviconURL = (env && env.ICO) ? env.ICO : 'https://cf-assets.www.cloudflare.com/dzlvafdwdttg/19kSkLSfWtDcspvQI5pit4/c5630cf25d589a0de91978ca29486259/performance-acceleration-bolt.svg';
+    const faviconURL = (env && env.ICO) ? env.ICO : 'https://cf-assets.www.cloudflare.com/dzlvafdwdttg/19kSkLSfWtDcspvQI5pit4/c5630cf25d589a0de91978ca29486259/performance-acceleration-bolt.svg';
 
     if (path.toLowerCase() === '/favicon.ico') {
         return Response.redirect(faviconURL, 302);
@@ -309,7 +303,7 @@ export default {
 };
 
 function generateMainHTML(faviconURL) {
-  var year = new Date().getFullYear();
+  const year = new Date().getFullYear();
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -446,7 +440,7 @@ function generateMainHTML(faviconURL) {
        <hr style="border:0; border-top: 1px solid var(--border-color); margin: 20px 0;"/>
        <h4 style="margin-bottom:15px; text-align:center;">Direct URL Usage</h4>
        <p><code>/proxyip/IP1,IP2,...</code> - Server-side check for multiple IPs.</p>
-       <p><code>/iprange/1.1.1.0/24,...</code> - Pre-fills the range input box on the main page.</p>
+       <p><code>/iprange/1.1.1.0/24</code> - Pre-fills the range input box on the main page.</p>
        <p><code>/file/https://path.to/your/file.txt</code> - Server-side check for IPs in a remote file.</p>
     </div>
     <footer class="footer">
@@ -560,24 +554,41 @@ function generateMainHTML(faviconURL) {
         if(spinner) spinner.style.display = checking ? 'inline-block' : 'none';
     }
 
-    async function fetchAPI(path, params) {
-        if (!TEMP_TOKEN) {
-             showToast("Session not ready. Retrying...");
-             await new Promise(function(resolve) { setTimeout(resolve, 500); });
-             if (!TEMP_TOKEN) {
-                var res = await fetch('/api/get-token');
-                var data = await res.json();
-                TEMP_TOKEN = data.token;
-             }
-             if (!TEMP_TOKEN) throw new Error("Could not retrieve session token.");
-        }
+    function fetchAPI(path, params) {
+        return new Promise(function (resolve, reject) {
+            if (!TEMP_TOKEN) {
+                 showToast("Session not ready. Retrying...");
+                 setTimeout(function() {
+                    fetch('/api/get-token').then(function(res) { return res.json(); }).then(function(data) {
+                        TEMP_TOKEN = data.token;
+                        if (!TEMP_TOKEN) {
+                            reject(new Error("Could not retrieve session token."));
+                        } else {
+                            _fetchWithToken(path, params, resolve, reject);
+                        }
+                    });
+                 }, 500);
+            } else {
+                _fetchWithToken(path, params, resolve, reject);
+            }
+        });
+    }
+
+    function _fetchWithToken(path, params, resolve, reject) {
         params.append('token', TEMP_TOKEN);
-        var response = await fetch(path + '?' + params.toString());
-        if (!response.ok) {
-           var data = await response.json().catch(function() { return {}; });
-           throw new Error('API Error: ' + (data.message || response.statusText));
-        }
-        return response.json();
+        fetch(path + '?' + params.toString())
+            .then(function(response) {
+                if (!response.ok) {
+                    response.json().catch(function() { return {}; }).then(function(data) {
+                        reject(new Error('API Error: ' + (data.message || response.statusText)));
+                    });
+                } else {
+                    resolve(response.json());
+                }
+            })
+            .catch(function(err) {
+                reject(new Error('Network error: ' + err.message));
+            });
     }
     
     var isIPAddress = function(input) { return /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(input) || /\[?([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}\]?/.test(input); };
@@ -800,4 +811,4 @@ function generateMainHTML(faviconURL) {
   </script>
 </body>
 </html>`;
-      }
+}
