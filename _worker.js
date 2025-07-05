@@ -186,7 +186,7 @@ export default {
     temporaryTOKEN = await doubleHash(hostname + timestampForToken + userAgent);
     permanentTOKEN = env.TOKEN || temporaryTOKEN;
 
-    if (path.toLowerCase().startsWith('/proxyip/')) {
+    if (path.toLowerCase().startsWith('/proxyip/') || path.toLowerCase().startsWith('/iprange/')) {
         const ips_string = path.substring(path.indexOf('/', 1) + 1);
         const allIPs = ips_string.split(',').map(ip => ip.trim()).filter(Boolean);
 
@@ -444,13 +444,9 @@ function generateMainHTML(faviconURL) {
     </header>
     <div class="card">
       <div class="form-section">
-        <label for="mainInput" class="form-label">Enter IPs or Domains (one per line):</label>
+        <label for="mainInput" class="form-label">Enter IPs, Domains, Ranges, or URL (one per line):</label>
         <div class="input-wrapper">
-          <textarea id="mainInput" class="form-input" rows="4" placeholder="e.g.,&#10;1.1.1.1&#10;example.com" autocomplete="off"></textarea>
-        </div>
-        <label for="rangeInput" class="form-label">Enter IP Range(s) (one per line):</label>
-        <div class="input-wrapper">
-          <textarea id="rangeInput" class="form-input" rows="3" placeholder="e.g.,&#10;1.1.1.0/24&#10;2.2.2.0-255" autocomplete="off"></textarea>
+          <textarea id="mainInput" class="form-input" rows="5" placeholder="e.g.,&#10;1.1.1.1&#10;example.com&#10;1.1.1.0/24&#10;https://example.com/proxies.txt" autocomplete="off"></textarea>
         </div>
         <button id="checkBtn" class="btn-primary">
           <span style="display: flex; align-items: center; justify-content: center;">
@@ -460,12 +456,6 @@ function generateMainHTML(faviconURL) {
         </button>
       </div>
       <div id="result" class="result-section"></div>
-      <div id="rangeResultCard" class="result-card result-section" style="display:none;">
-         <h4>Successful IPs in Range:</h4>
-         <div id="rangeResultSummary" style="margin-bottom: 15px;"></div>
-         <div id="successfulRangeIPsList" style="margin-bottom: 15px; max-height: 200px; overflow-y: auto;"></div>
-         <button class="btn-secondary" id="copyRangeBtn" style="display:none;">Copy Successful IPs</button>
-      </div>
     </div>
     <div class="api-docs">
        <h3 style="margin-bottom:15px; text-align:center;">API Documentation</h3>
@@ -474,7 +464,7 @@ function generateMainHTML(faviconURL) {
        <p><code>GET /api/ip-info?ip=TARGET_IP&token=YOUR_TOKEN</code></p>
        <hr style="border:0; border-top: 1px solid var(--border-color); margin: 20px 0;"/>
        <h4 style="margin-bottom:15px; text-align:center;">Direct URL Usage</h4>
-       <p><code>/proxyip/IP1,IP2,...</code> or <code>/iprange/IP1,IP2,...</code> - Directly checks IPs and shows a results page.</p>
+       <p><code>/proxyip/IP1,IP2,...</code> - Directly checks IPs from a path and shows a results page.</p>
        <p><code>/url/https://path.to/your/file.txt</code> - Directly checks IPs from a URL and shows a results page.</p>
     </div>
     <footer class="footer">
@@ -501,20 +491,12 @@ function generateMainHTML(faviconURL) {
   <script>
     let isChecking = false;
     let TEMP_TOKEN = '';
-    let mainSuccessfulIPs = [];
-    let rangeSuccessfulIPs = [];
 
     document.addEventListener('DOMContentLoaded', () => {
         fetch('/api/get-token').then(res => res.json()).then(data => { TEMP_TOKEN = data.token; });
         
-        document.getElementById('checkBtn').addEventListener('click', () => checkInputs());
+        document.getElementById('checkBtn').addEventListener('click', () => checkInputs(document.getElementById('mainInput').value));
         
-        document.getElementById('copyRangeBtn').addEventListener('click', () => {
-            if (rangeSuccessfulIPs.length > 0) {
-                copyToClipboard(rangeSuccessfulIPs.join('\\n'), null, "All successful range IPs copied!");
-            }
-        });
-
         document.body.addEventListener('click', event => {
             if (event.target.classList.contains('copy-btn')) {
                 const text = event.target.getAttribute('data-copy');
@@ -588,6 +570,7 @@ function generateMainHTML(faviconURL) {
         return response.json();
     }
     
+    const isURL = (str) => { try { new URL(str); return str.startsWith('http://') || str.startsWith('https://'); } catch (_) { return false; } }
     const isIPAddress = (input) => /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(input) || /\[?([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}\]?/.test(input);
     const isDomain = (input) => /^(?!-)[A-Za-z0-9-]+([\-\.]{1}[a-z0-9]+)*\.[A-Za-z]{2,6}$/.test(input);
     const isIPRange = (input) => /^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\/(\d{1,2})$/.test(input) || /^(\d{1,3}\.\d{1,3}\.\d{1,3}\.)(\d{1,3})-(\d{1,3})$/.test(input);
@@ -619,179 +602,132 @@ function generateMainHTML(faviconURL) {
         }
         return ips;
     }
+    
+    function parseIpsFromText(text) {
+        const ipRegex = /(\[?([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}\]?)|((?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))/g;
+        return [...new Set(text.match(ipRegex) || [])];
+    }
 
-    async function checkInputs() {
+    async function checkInputs(inputValue) {
         if (isChecking) return;
-
-        const mainInputValue = document.getElementById('mainInput').value;
-        const rangeInputValue = document.getElementById('rangeInput').value;
-        const mainLines = mainInputValue.split(/[\\n,;\\s]+/).map(s => s.trim()).filter(s => s);
-        const rangeLines = rangeInputValue.split('\\n').map(s => s.trim()).filter(s => s);
-
-        if (mainLines.length === 0 && rangeLines.length === 0) {
+        
+        const lines = inputValue.split(/[\\n,;\\s]+/).map(s => s.trim()).filter(s => s);
+        if (lines.length === 0) {
             showToast('Please enter something to check.');
             return;
         }
 
         toggleCheckButton(true);
-        document.getElementById('result').innerHTML = '';
-        document.getElementById('rangeResultCard').style.display = 'none';
-        
-        const mainPromise = processMainInput(mainLines);
-        const rangePromise = processRangeInput(rangeLines);
-        
-        await Promise.all([mainPromise, rangePromise]);
-        
-        toggleCheckButton(false);
-    }
-
-    async function processMainInput(lines) {
-        if (lines.length === 0) return;
-
-        mainSuccessfulIPs = [];
         const resultDiv = document.getElementById('result');
-        const summaryCard = document.createElement('div');
-        summaryCard.classList.add('result-card', 'result-warning');
-        resultDiv.appendChild(summaryCard);
+        resultDiv.innerHTML = '';
         
+        const summaryCard = document.createElement('div');
+        summaryCard.className = 'result-card result-warning';
+        resultDiv.appendChild(summaryCard);
+
         const summaryHeader = document.createElement('div');
         const summaryBody = document.createElement('div');
         summaryCard.appendChild(summaryHeader);
         summaryCard.appendChild(summaryBody);
 
-        let allIPsToTest = [];
-        const resolvePromises = [];
-        const domains = lines.filter(line => isDomain(line.split(':')[0]));
-        
-        summaryHeader.innerHTML = `<h3>Proxy IP Test Results:</h3>`;
-        if (domains.length > 0) {
-            summaryHeader.innerHTML += `<p style="margin-bottom: 5px;"><strong>Domains being tested:</strong></p>
-                                        <div style="padding-left: 15px; margin-bottom: 10px;">${domains.map(d => `<code>${d}</code>`).join('<br>')}</div>`;
-        }
-        
-        lines.forEach(line => {
-            if (isDomain(line.split(':')[0])) {
-                resolvePromises.push(
-                    resolveDomain(line).catch(err => {
-                        showToast(`Could not resolve ${line}.`);
-                        return [];
-                    })
-                );
-            } else if (isIPAddress(line.split(':')[0].replace(/[\\[\\]]/g, ''))) {
-                 allIPsToTest.push(line);
-            } else {
-                 showToast(`Unrecognized format in main box: ${line}`);
-            }
-        });
+        let mainSuccessfulIPs = [];
 
-        const resolvedIPsArrays = await Promise.all(resolvePromises);
-        resolvedIPsArrays.forEach(ipArray => allIPsToTest.push(...ipArray));
-        allIPsToTest = [...new Set(allIPsToTest)];
-        
-        const ipCountSpan = document.createElement('p');
-        ipCountSpan.style.color = 'var(--text-light)';
-        ipCountSpan.style.borderTop = '1px solid var(--border-color)';
-        ipCountSpan.style.paddingTop = '15px';
-        ipCountSpan.style.marginTop = '15px';
-        ipCountSpan.innerHTML = `Found ${allIPsToTest.length} unique IPs to test...`;
-        summaryHeader.appendChild(ipCountSpan);
+        try {
+            const inputs = { domains: [], ips: [], ranges: [], urls: [] };
+            lines.forEach(line => {
+                if (isURL(line)) { inputs.urls.push(line); }
+                else if (isDomain(line.split(':')[0])) { inputs.domains.push(line); }
+                else if (isIPRange(line)) { inputs.ranges.push(line); }
+                else if (isIPAddress(line.split(':')[0].replace(/[\\[\\]]/g, ''))) { inputs.ips.push(line); }
+                else { showToast(`Unrecognized format: ${line}`); }
+            });
 
-        const checkPromises = allIPsToTest.map(async (ip) => {
-            try {
-                const data = await fetchAPI('/api/check', new URLSearchParams({ proxyip: ip }));
-                if (data.success) {
-                    const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: data.proxyIP }));
-                    const successBox = document.createElement('div');
-                    successBox.classList.add('result-success-box');
-                    successBox.innerHTML = `
-                        <p><strong>IP Address:</strong> ${createCopyButton(data.proxyIP)}</p>
-                        <p><strong>Country:</strong> ${ipInfo.country || 'N/A'}</p>
-                        <p><strong>AS:</strong> ${ipInfo.as || 'N/A'}</p>
-                        <p><strong>Port:</strong> ${data.portRemote}</p>`;
-                    summaryBody.appendChild(successBox);
-                    mainSuccessfulIPs.push(data.proxyIP);
-                }
-            } catch (e) {
-                console.error(`Failed to check IP ${ip}:`, e);
-            }
-        });
+            summaryHeader.innerHTML = `<h3>Processing...</h3>`;
 
-        await Promise.all(checkPromises);
-        
-        if (mainSuccessfulIPs.length > 0) {
-            summaryCard.classList.remove('result-warning');
-            const copyAllBtn = document.createElement('button');
-            copyAllBtn.classList.add('btn-secondary');
-            copyAllBtn.style.marginTop = '15px';
-            copyAllBtn.textContent = 'Copy All Successful IPs';
-            copyAllBtn.onclick = () => copyToClipboard(mainSuccessfulIPs.join('\\n'), null, "All IPs copied!");
-            summaryCard.appendChild(copyAllBtn);
-        } else {
-             ipCountSpan.remove();
-             summaryBody.innerHTML = '<p style="text-align:center;">No successful proxies were found.</p>';
-        }
-    }
+            let allIPsToTest = [...inputs.ips];
+            inputs.ranges.forEach(range => allIPsToTest.push(...parseIPRange(range)));
 
-    async function processRangeInput(lines) {
-        if (lines.length === 0) return;
+            const remoteFetchPromises = [
+                ...inputs.domains.map(domain => resolveDomain(domain).catch(err => { showToast(`Could not resolve ${domain}.`); return []; })),
+                ...inputs.urls.map(url => fetch(`https://cors-anywhere.herokuapp.com/${url}`).then(res => res.ok ? res.text() : Promise.reject(new Error(`Fetch failed for ${url}`))).then(text => parseIpsFromText(text)).catch(err => { showToast(err.message); return []; }))
+            ];
+            
+            const remoteIPsArrays = await Promise.all(remoteFetchPromises);
+            remoteIPsArrays.forEach(ipList => allIPsToTest.push(...ipList));
+            allIPsToTest = [...new Set(allIPsToTest)];
+            
+            let headerHTML = `<h3>Results Summary</h3>`;
+            const summaryItems = [];
+            if (inputs.domains.length > 0) summaryItems.push(`Domains: ${inputs.domains.join(', ')}`);
+            if (inputs.ips.length > 0) summaryItems.push(`IPs: ${inputs.ips.length}`);
+            if (inputs.ranges.length > 0) summaryItems.push(`Ranges: ${inputs.ranges.join(', ')}`);
+            if (inputs.urls.length > 0) summaryItems.push(`URLs: ${inputs.urls.length}`);
 
-        const rangeResultCard = document.getElementById('rangeResultCard');
-        const summaryDiv = document.getElementById('rangeResultSummary');
-        const listDiv = document.getElementById('successfulRangeIPsList');
-        const copyBtn = document.getElementById('copyRangeBtn');
+            headerHTML += `<p><strong>Testing From:</strong> ${summaryItems.join(' | ')}</p><p>Found ${allIPsToTest.length} unique IPs to test...</p><hr>`;
+            summaryHeader.innerHTML = headerHTML;
 
-        rangeResultCard.style.display = 'block';
-        listDiv.innerHTML = '';
-        summaryDiv.innerHTML = 'Total Tested: 0 | Total Successful: 0';
-        copyBtn.style.display = 'none';
-        rangeSuccessfulIPs = [];
-
-        let totalChecked = 0;
-        let allIPsToTest = [];
-        lines.forEach(line => {
-            if (isIPRange(line)) {
-                allIPsToTest.push(...parseIPRange(line));
-            } else {
-                showToast(`Invalid range format: ${line}`);
-            }
-        });
-        allIPsToTest = [...new Set(allIPsToTest)];
-        if (allIPsToTest.length === 0) {
-            rangeResultCard.style.display = 'none';
-            return;
-        }
-
-        const batchSize = 10;
-        for (let i = 0; i < allIPsToTest.length; i += batchSize) {
-            const batch = allIPsToTest.slice(i, i + batchSize);
-            const checkPromises = batch.map(async (ip) => {
+            const checkPromises = allIPsToTest.map(async (ip) => {
                 try {
                     const data = await fetchAPI('/api/check', new URLSearchParams({ proxyip: ip }));
                     if (data.success) {
-                        rangeSuccessfulIPs.push(ip);
+                        const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: data.proxyIP }));
+                        const successBox = document.createElement('div');
+                        successBox.className = 'result-success-box';
+                        successBox.innerHTML = `
+                            <p><strong>IP Address:</strong> ${createCopyButton(data.proxyIP)}</p>
+                            <p><strong>Country:</strong> ${ipInfo.country || 'N/A'}</p>
+                            <p><strong>AS:</strong> ${ipInfo.as || 'N/A'}</p>
+                            <p><strong>Port:</strong> ${data.portRemote}</p>`;
+                        summaryBody.appendChild(successBox);
+                        mainSuccessfulIPs.push(data.proxyIP);
                     }
-                } catch (e) { console.error(`Failed to check range IP ${ip}:`, e); }
-                finally { totalChecked++; }
+                } catch (e) {
+                     console.error(`Failed to check IP ${ip}:`, e);
+                }
             });
+
             await Promise.all(checkPromises);
-            summaryDiv.innerHTML = `Total Tested: ${totalChecked} / ${allIPsToTest.length} | Total Successful: ${rangeSuccessfulIPs.length}`;
-            updateSuccessfulRangeIPsDisplay();
-        }
 
-        if (rangeSuccessfulIPs.length > 0) {
-            copyBtn.style.display = 'inline-block';
-        }
-    }
+        } catch (error) {
+            summaryHeader.innerHTML = `<h3 class="result-error-text">❌ An error occurred</h3><p>${error.message}</p>`;
+        } finally {
+            if (mainSuccessfulIPs.length > 0) {
+                summaryCard.classList.remove('result-warning');
+                const actionsDiv = document.createElement('div');
+                actionsDiv.style.marginTop = '15px';
+                
+                const copyBtn = document.createElement('button');
+                copyBtn.className = 'btn-secondary';
+                copyBtn.textContent = 'Copy All';
+                copyBtn.onclick = () => copyToClipboard(mainSuccessfulIPs.join('\\n'), null, "All successful IPs copied!");
+                actionsDiv.appendChild(copyBtn);
+                
+                if (lines.some(isURL)) {
+                    const downloadBtn = document.createElement('button');
+                    downloadBtn.className = 'btn-secondary';
+                    downloadBtn.textContent = 'Download .txt';
+                    downloadBtn.onclick = () => {
+                         const blob = new Blob([mainSuccessfulIPs.join('\\n')], { type: 'text/plain' });
+                         const url = URL.createObjectURL(blob);
+                         const a = document.createElement('a');
+                         a.href = url;
+                         a.download = 'successful_proxies.txt';
+                         document.body.appendChild(a);
+                         a.click();
+                         document.body.removeChild(a);
+                         URL.revokeObjectURL(url);
+                    };
+                    actionsDiv.appendChild(downloadBtn);
+                }
+                summaryCard.appendChild(actionsDiv);
 
-    function updateSuccessfulRangeIPsDisplay() {
-        const listDiv = document.getElementById('successfulRangeIPsList');
-        if (rangeSuccessfulIPs.length === 0) {
-            listDiv.innerHTML = '<p style="text-align:center; color: var(--text-light);">No successful IPs found in range(s).</p>';
-            return;
+            } else {
+                 summaryBody.innerHTML = '<p style="text-align:center;">No successful proxies were found.</p>';
+            }
+            toggleCheckButton(false);
         }
-        listDiv.innerHTML = rangeSuccessfulIPs.map(ip => `<div class="ip-item"><span>${ip}</span></div>`).join('');
     }
   </script>
 </body>
 </html>`;
-        }
+  }
