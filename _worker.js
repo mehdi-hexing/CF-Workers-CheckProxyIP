@@ -1,7 +1,7 @@
 import { connect } from "cloudflare:sockets";
 
 // --- Client-side JavaScript as a String Constant ---
-// This script will be served dynamically by the worker at the /client.js path.
+// (Unchanged)
 const CLIENT_SCRIPT = `
     let isChecking = false;
     let TEMP_TOKEN = '';
@@ -9,12 +9,29 @@ const CLIENT_SCRIPT = `
     let ipCheckResults = new Map();
 
     document.addEventListener('DOMContentLoaded', () => {
-        fetch('/api/get-token').then(res => res.json()).then(data => { TEMP_TOKEN = data.token; });
-        
         const checkBtn = document.getElementById('checkBtn');
-        if(checkBtn) {
-            checkBtn.addEventListener('click', checkInputs);
-        }
+        const checkBtnText = checkBtn.querySelector('.btn-text');
+
+        checkBtn.disabled = true;
+        checkBtnText.textContent = 'Initializing...';
+
+        fetch('/api/get-token')
+            .then(res => {
+                if (!res.ok) throw new Error('Failed to fetch session token.');
+                return res.json();
+            })
+            .then(data => {
+                TEMP_TOKEN = data.token;
+                checkBtn.disabled = false;
+                checkBtnText.textContent = 'Check';
+            })
+            .catch(err => {
+                showToast('Error: Could not initialize session. Please refresh the page.');
+                console.error(err);
+                checkBtnText.textContent = 'Error';
+            });
+        
+        checkBtn.addEventListener('click', checkInputs);
         
         const copyRangeBtn = document.getElementById('copyRangeBtn');
         if (copyRangeBtn) {
@@ -43,27 +60,7 @@ const CLIENT_SCRIPT = `
             body.classList.toggle('dark-mode');
             localStorage.setItem('theme', body.classList.contains('dark-mode') ? 'dark' : 'light');
         });
-        
-        handleHashChange();
-        window.addEventListener('hashchange', handleHashChange, false);
     });
-
-    function handleHashChange() {
-        if (!location.hash.startsWith('#/action/')) return;
-        const parts = location.hash.split('/');
-        const type = parts[2];
-        const data = decodeURIComponent(parts.slice(3).join('/'));
-
-        if (data && type === 'range') {
-            document.getElementById('rangeInput').value = data.replace(/,/g, '\\n');
-            setTimeout(() => document.getElementById('checkBtn').click(), 100);
-        }
-         if (data && type === 'proxyip') {
-            document.getElementById('mainInput').value = data.replace(/,/g, '\\n');
-            setTimeout(() => document.getElementById('checkBtn').click(), 100);
-        }
-        history.pushState("", document.title, window.location.pathname + window.location.search);
-    }
 
     function showToast(message, duration = 3000) {
         const toast = document.getElementById('toast');
@@ -100,20 +97,25 @@ const CLIENT_SCRIPT = `
 
     async function fetchAPI(path, params) {
         if (!TEMP_TOKEN) {
-             showToast("Session not ready. Retrying...");
-             await new Promise(resolve => setTimeout(resolve, 500));
-             if (!TEMP_TOKEN) {
-                const res = await fetch('/api/get-token');
-                const data = await res.json();
-                TEMP_TOKEN = data.token;
-             }
-             if (!TEMP_TOKEN) throw new Error("Could not retrieve session token.");
+            throw new Error("Session token is not available. Please refresh.");
         }
         params.append('token', TEMP_TOKEN);
         const response = await fetch(path + '?' + params.toString());
+        
         if (!response.ok) {
-           const data = await response.json().catch(() => ({}));
-           throw new Error('API Error: ' + (data.message || response.statusText));
+           let errorMessage = \`Error: \${response.status} \${response.statusText}\`;
+           try {
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.includes("application/json")) {
+                    const errorData = await response.json();
+                    errorMessage = errorData.error || errorData.message || errorMessage;
+                } else {
+                    const textError = await response.text();
+                    errorMessage = textError.length < 200 ? textError : errorMessage;
+                }
+           } catch(e) { /* Ignore parsing errors, use status text */ }
+           
+           throw new Error(errorMessage);
         }
         return response.json();
     }
@@ -174,7 +176,7 @@ const CLIENT_SCRIPT = `
         try {
             await Promise.all([mainPromise, rangePromise]);
         } catch (e) {
-            showToast('An error occurred during processing.');
+            showToast('An unexpected error occurred during processing.');
             console.error(e);
         } finally {
             toggleCheckButton(false);
@@ -190,7 +192,10 @@ const CLIENT_SCRIPT = `
             } else if (isIPAddress(line.split(':')[0].replace(/\\[|\\]/g, ''))) {
                 await checkAndDisplaySingleIP(line, resultDiv);
             } else {
-                showToast('Unrecognized format in main box: ' + line);
+                const resultCard = document.createElement('div');
+                resultCard.classList.add('result-card', 'result-error');
+                resultCard.innerHTML = \`<h3>❌ Unrecognized Format</h3><p>Input '\${line}' is not a valid IP or domain.</p>\`;
+                resultDiv.appendChild(resultCard);
             }
         });
         await Promise.all(checkPromises);
@@ -204,35 +209,36 @@ const CLIENT_SCRIPT = `
         
         try {
             const data = await fetchAPI('/api/check', new URLSearchParams({ proxyip }));
-            if (data.success) {
-                const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: data.proxyIP }));
-                resultCard.classList.add('result-success');
-                resultCard.innerHTML = \`<h3>✅ Valid Proxy IP</h3>
-                    <p><strong>📍 IP Address:</strong> \${createCopyButton(data.proxyIP)}</p>
-                    <p><strong>🌍 Country:</strong> \${ipInfo.country || 'N/A'}</p>
-                    <p><strong>🌐 AS:</strong> \${ipInfo.as || 'N/A'}</p>
-                    <p><strong>🔌 Port:</strong> \${data.portRemote}</p>\`;
-            } else {
-                resultCard.classList.add('result-error');
-                resultCard.innerHTML = \`<h3>❌ Invalid Proxy IP</h3>
-                    <p><strong>📍 IP Address:</strong> \${createCopyButton(proxyip)}</p>
-                    <p><strong>Error:</strong> \${data.error || 'Check failed.'}</p>\`;
-            }
+            const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: data.proxyIP }));
+            
+            resultCard.classList.add('result-success');
+            resultCard.innerHTML = \`<h3>✅ Valid Proxy IP</h3>
+                <p><strong>📍 IP Address:</strong> \${createCopyButton(data.proxyIP)}</p>
+                <p><strong>🌍 Country:</strong> \${ipInfo.country || 'N/A'}</p>
+                <p><strong>🌐 AS:</strong> \${ipInfo.as || 'N/A'}</p>
+                <p><strong>🔌 Port:</strong> \${data.portRemote}</p>\`;
+
         } catch (error) {
             resultCard.classList.add('result-error');
-            resultCard.innerHTML = '<h3>❌ Error</h3><p>' + error.message + '</p>';
+            resultCard.innerHTML = \`<h3>❌ Error checking \${proxyip}</h3><p>\${error.message}</p>\`;
         }
     }
-
+    
     async function checkAndDisplayDomain(domain, parentElement) {
         const resultCard = document.createElement('div');
         resultCard.classList.add('result-card', 'result-warning');
-        resultCard.innerHTML = '<p style="text-align:center; color: var(--text-light);">Resolving ' + domain + '...</p>';
+        resultCard.innerHTML = \`<p style="text-align:center; color: var(--text-light);">Resolving \${domain}...</p>\`;
         parentElement.appendChild(resultCard);
 
         try {
             const resolveData = await fetchAPI('/api/resolve', new URLSearchParams({ domain }));
             const ips = resolveData.ips;
+
+            if (!ips || ips.length === 0) {
+                 resultCard.className = 'result-card result-error';
+                 resultCard.innerHTML = \`<h3>❌ No IPs found for \${domain}</h3><p>The domain could not be resolved.</p>\`;
+                 return;
+            }
 
             resultCard.innerHTML = \`<h3>🔍 Results for \${createCopyButton(domain)} (\${ips.length} IPs found)</h3>
                                     <div class="domain-ip-list"></div>\`;
@@ -271,10 +277,10 @@ const CLIENT_SCRIPT = `
             }
         } catch (error) {
             resultCard.className = 'result-card result-error';
-            resultCard.innerHTML = '<h3>❌ Error resolving ' + domain + '</h3><p>' + error.message + '</p>';
+            resultCard.innerHTML = \`<h3>❌ Error resolving \${domain}</h3><p>\${error.message}</p>\`;
         }
     }
-
+    
     async function processRangeInput(lines) {
         if (lines.length === 0) return;
 
@@ -336,144 +342,157 @@ const CLIENT_SCRIPT = `
     }
 `;
 
-// --- Main Fetch Handler ---
-export default {
-  async fetch(request, env, ctx) {
-    const url = new URL(request.url);
-    const path = url.pathname;
-    
-    // Serve the client-side JavaScript file
-    if (path === '/client.js') {
-        return new Response(CLIENT_SCRIPT, { headers: { "Content-Type": "application/javascript;charset=UTF-8" } });
+// --- Server-Side Helper Functions ---
+const isIp = (str) => /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(str);
+
+async function doubleHash(string) {
+    const data = new TextEncoder().encode(string);
+    const firstHash = await crypto.subtle.digest('SHA-256', data);
+    const secondHash = await crypto.subtle.digest('SHA-256', firstHash);
+    return Array.from(new Uint8Array(secondHash)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function checkProxyIP(proxyAddress) {
+  const addressParts = proxyAddress.split(':');
+  const hostname = addressParts[0];
+  const port = parseInt(addressParts[1] || '443', 10);
+
+  try {
+    const socket = connect({ hostname, port });
+    socket.close();
+    return { success: true, proxyIP: hostname, portRemote: port };
+  } catch (err) {
+    return { success: false, error: `Connection failed: ${err.message}` };
+  }
+}
+
+async function resolveDomain(domain) {
+    const response = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=A`, {
+        headers: { 'accept': 'application/dns-json' },
+    });
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data.Answer ? data.Answer.map(ans => ans.data) : [];
+}
+
+async function getIpInfo(ip) {
+    try {
+        const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,message,query,country,as`);
+        if (!response.ok) return { country: 'N/A', as: 'N/A' };
+        return await response.json();
+    } catch (e) {
+        return { country: 'N/A', as: 'N/A' };
     }
+}
 
-    // --- Server-Side Path Handlers ---
-    if (path.toLowerCase().startsWith('/iprange/')) {
-        const range_string = path.substring(path.indexOf('/', 1) + 1);
-        const redirectUrl = new URL(request.url);
-        redirectUrl.pathname = '/';
-        redirectUrl.hash = '#/action/range/' + encodeURIComponent(range_string);
-        return Response.redirect(redirectUrl.toString(), 302);
-    }
-    
-    if (path.toLowerCase().startsWith('/proxyip/')) {
-        const ips_string = path.substring(path.indexOf('/', 1) + 1);
-        const redirectUrl = new URL(request.url);
-        redirectUrl.pathname = '/';
-        redirectUrl.hash = '#/action/proxyip/' + encodeURIComponent(ips_string);
-        return Response.redirect(redirectUrl.toString(), 302);
-    }
-    
-    if (path.toLowerCase().startsWith('/file/')) {
-        try {
-            const targetUrl = request.url.substring(request.url.indexOf('/file/') + 6);
-            if (!targetUrl || !targetUrl.startsWith('http')) {
-                 return new Response('Invalid URL provided.', { status: 400 });
+function parseIPRangeServer(rangeInput) {
+    const ips = [];
+    const rangeMatch = rangeInput.match(/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.)(\d{1,3})-(\d{1,3})$/);
+    if (rangeMatch) {
+        const [, prefix, startOctetStr, endOctetStr] = rangeMatch;
+        const startOctet = parseInt(startOctetStr);
+        const endOctet = parseInt(endOctetStr);
+        if (!isNaN(startOctet) && !isNaN(endOctet) && startOctet <= endOctet && startOctet >= 0 && endOctet <= 255) {
+            for (let i = startOctet; i <= endOctet; i++) {
+                ips.push(prefix + i);
             }
-            if (!targetUrl.toLowerCase().endsWith('.txt') && !targetUrl.toLowerCase().endsWith('.csv')) {
-                return new Response('Invalid file type. Only .txt and .csv are supported.', { status: 400 });
-            }
-        
-            const response = await fetch(targetUrl, { headers: {'User-Agent': 'ProxyCheckerWorker/1.0'} });
-            if (!response.ok) {
-                throw new Error('Failed to fetch the URL: ' + response.statusText);
-            }
-            const text = await response.text();
-            const ipRegex = /(\[?([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}\]?)|((?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))/g;
-            const allIPs = [...new Set(text.match(ipRegex) || [])];
-
-            const checkPromises = allIPs.map(ip => checkProxyIP(ip));
-            const checkResults = await Promise.allSettled(checkPromises);
-
-            const successfulChecks = checkResults
-                .filter(result => result.status === 'fulfilled' && result.value.success)
-                .map(result => result.value);
-            
-            const successfulResultsWithInfo = await Promise.all(successfulChecks.map(async (check) => {
-                const info = await getIpInfo(check.proxyIP);
-                return { check, info };
-            }));
-            
-            const title = 'Results for File: <a href="' + targetUrl + '" target="_blank" rel="noopener noreferrer">' + targetUrl + '</a>';
-            const html = generateSimpleResultHTML(title, successfulResultsWithInfo, true);
-            return new Response(html, { headers: { 'Content-Type': 'text/html;charset=UTF-8' } });
-
-        } catch (error) {
-            return new Response('An error occurred: ' + error.message, { status: 500 });
         }
     }
-    
-    // --- API Routes ---
-    if (path.toLowerCase().startsWith('/api/')) {
-      const userAgent = request.headers.get('User-Agent') || 'null';
-      const hostname = url.hostname;
-      const timestampForToken = Math.ceil(new Date().getTime() / (1000 * 60 * 31));
-      temporaryTOKEN = await doubleHash(hostname + timestampForToken + userAgent);
-      permanentTOKEN = (env && env.TOKEN) ? env.TOKEN : temporaryTOKEN;
+    return ips;
+}
 
-      const isTokenValid = () => {
-          if (!env || !env.TOKEN) return true;
-          const providedToken = url.searchParams.get('token');
-          return providedToken === permanentTOKEN || providedToken === temporaryTOKEN;
-      };
-      
-      if (path.toLowerCase() === '/api/get-token') {
-          return new Response(JSON.stringify({ token: temporaryTOKEN }), { headers: { "Content-Type": "application/json" } });
-      }
+// --- NEW: Universal HTML Page Generator for Result Pages ---
+// --- MODIFIED: Final layout changes applied ---
+function generateResultsPageHTML({ title, subtitleLabel, subtitleContent, results, pageType, successfulIPsText }) {
+    const resultsRows = results.map(item => {
+        const detailsParts = [];
+        if (item.info.country) detailsParts.push(item.info.country);
+        if (item.info.as) detailsParts.push(item.info.as);
+        const detailsText = detailsParts.length > 0 ? `(${detailsParts.join(' - ')})` : '';
 
-      if (!isTokenValid()) {
-          return new Response(JSON.stringify({ status: "error", message: "Invalid TOKEN" }), {
-              status: 403, headers: { "Content-Type": "application/json" }
-          });
-      }
+        return `
+        <div class="ip-item">
+            <span class="ip-tag" onclick="copyToClipboard('${item.check.proxyIP}', this)">${item.check.proxyIP}</span>
+            <span class="ip-details">${detailsText}</span>
+        </div>`;
+    }).join('');
 
-      if (path.toLowerCase() === '/api/check') {
-          if (!url.searchParams.has('proxyip')) return new Response('Missing proxyip parameter', { status: 400 });
-          const proxyIPInput = url.searchParams.get('proxyip');
-          const ipWithPort = proxyIPInput.includes(':') || proxyIPInput.includes(']:') ? proxyIPInput : proxyIPInput + ':443';
-          const result = await checkProxyIP(ipWithPort);
-          return new Response(JSON.stringify(result), {
-              status: result.success ? 200 : 502, headers: { "Content-Type": "application/json" }
-          });
-      }
-      
-      if (path.toLowerCase() === '/api/resolve') {
-          if (!url.searchParams.has('domain')) return new Response('Missing domain parameter', { status: 400 });
-          const domain = url.searchParams.get('domain');
-          try {
-              const ips = await resolveDomain(domain);
-              return new Response(JSON.stringify({ success: true, domain, ips }), { headers: { "Content-Type": "application/json" } });
-          } catch (error) {
-              return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: { "Content-Type": "application/json" } });
-          }
-      }
+    let subtitleHTML = '';
+    if (pageType === 'iprange') {
+        const ranges = subtitleContent.split(',').map(r => `<span class="range-tag" onclick="copyToClipboard('${r.trim()}', this)">${r.trim()}</span>`).join('<br>');
+        subtitleHTML = `<div class="ranges-list"><strong>${subtitleLabel}</strong><br>${ranges}</div>`;
+    } else if (pageType === 'file') {
+        subtitleHTML = `<div class="ranges-list"><strong>${subtitleLabel}</strong> <a href="${subtitleContent}" class="range-tag" target="_blank" rel="noopener noreferrer">${subtitleContent}</a></div>`;
+    }
 
-      if (path.toLowerCase() === '/api/ip-info') {
-          let ip = url.searchParams.get('ip') || request.headers.get('CF-Connecting-IP');
-          if (!ip) return new Response('IP parameter not provided', { status: 400 });
-          if (ip.includes('[')) ip = ip.replace(/\[|\]/g, '');
-          const response = await fetch('http://ip-api.com/json/' + ip + '?fields=status,message,query,country,countryCode,as&lang=en');
-          const data = await response.json();
-          return new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } });
-      }
-      
-      return new Response('API route not found', { status: 404 });
+    let actionButtonsHTML = '';
+    if (results.length > 0) {
+        let downloadButton = '';
+        if (pageType === 'file') {
+            const dataUrl = `data:text/plain;charset=utf-8;base64,${btoa(unescape(encodeURIComponent(successfulIPsText)))}`;
+            downloadButton = `<a href="${dataUrl}" download="successful_ips.txt" class="btn btn-secondary">📥 Download Results</a>`;
+        }
+        actionButtonsHTML = `
+        <div class="action-buttons">
+            ${downloadButton}
+            <button class="btn btn-primary" onclick="copyToClipboard('${successfulIPsText.replace(/'/g, "\\'")}')">📋 Copy All</button>
+        </div>`;
     }
     
-    // --- Main Page ---
-    const faviconURL = (env && env.ICO) ? env.ICO : 'https://cf-assets.www.cloudflare.com/dzlvafdwdttg/19kSkLSfWtDcspvQI5pit4/c5630cf25d589a0de91978ca29486259/performance-acceleration-bolt.svg';
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title}</title>
+    <style>
+        :root{--bg-color:#f4f7f9;--card-bg-color:#fff;--text-color:#2c3e50;--border-color:#e1e8ed;--hover-bg-color:#f8f9fa;--primary-color:#3498db;--primary-text-color:#fff;--subtle-text-color:#7f8c8d;--tag-bg-color:#e8eaed;--secondary-color:#95a5a6}body.dark-mode{--bg-color:#2c3e50;--card-bg-color:#34495e;--text-color:#ecf0f1;--border-color:#465b71;--hover-bg-color:#4a6075;--subtle-text-color:#bdc3c7;--tag-bg-color:#2b2b2b;--secondary-color:#7f8c8d}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background-color:var(--bg-color);color:var(--text-color);margin:0;padding:20px;transition:background-color .3s,color .3s}.container{max-width:700px;margin:0 auto}.header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:15px;margin-bottom:25px;border-bottom:1px solid var(--border-color)}.title-section h1{font-size:1.8em;margin:0 0 10px}.ranges-list{font-size:.9em;color:var(--subtle-text-color)}.range-tag{display:inline-block;background-color:var(--tag-bg-color);padding:4px 8px;border-radius:6px;font-family:'Courier New',Courier,monospace;cursor:pointer;margin:2px 0;transition:background-color .2s;text-decoration:none;color:var(--text-color)}.range-tag:hover{background-color:var(--primary-color);color:var(--primary-text-color)}.button-group{display:flex;gap:10px;flex-shrink:0;margin-left:20px}.btn{padding:8px 16px;border:none;border-radius:8px;cursor:pointer;font-weight:500;font-size:.9em;transition:transform .2s;text-decoration:none;display:inline-flex;align-items:center}.btn-primary{background-color:var(--primary-color);color:var(--primary-text-color)}.btn-secondary{background-color:var(--secondary-color);color:var(--primary-text-color)}.btn:hover{transform:translateY(-2px)}.theme-toggle{background-color:var(--card-bg-color);border:1px solid var(--border-color);width:38px;height:38px;justify-content:center;padding:0}.results-card{background-color:var(--card-bg-color);border:1px solid var(--border-color);border-radius:10px;padding:10px}.ip-item{display:flex;justify-content:space-between;align-items:center;padding:12px 15px;border-radius:6px;}.ip-item:not(:last-child){border-bottom:1px solid var(--border-color)}.ip-tag{background-color:var(--tag-bg-color);padding:3px 7px;border-radius:5px;font-family:'Courier New',Courier,monospace;cursor:pointer;transition:background-color .2s}.ip-tag:hover{background-color:var(--primary-color);color:var(--primary-text-color)}.ip-details{font-size:.9em;color:var(--subtle-text-color);padding-left:15px}.action-buttons{margin-top:20px;display:flex;justify-content:center;gap:10px}.footer{text-align:center;padding:20px;margin-top:30px;color:var(--subtle-text-color);font-size:.9em;border-top:1px solid var(--border-color)}.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:12px 20px;border-radius:8px;z-index:1001;opacity:0;transition:opacity .3s,transform .3s;pointer-events:none}.toast.show{opacity:1}
+        .theme-toggle svg { width: 18px; height: 18px; stroke: var(--text-color); transition: all 0.3s ease; }
+        body:not(.dark-mode) .theme-toggle .sun-icon { display: block; fill: none;}
+        body:not(.dark-mode) .theme-toggle .moon-icon { display: none; }
+        body.dark-mode .theme-toggle .sun-icon { display: none; }
+        body.dark-mode .theme-toggle .moon-icon { display: block; fill: var(--text-color); stroke: var(--text-color); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="title-section">
+                <h1>${title}</h1>
+                ${subtitleHTML}
+            </div>
+            <div class="button-group">
+                <button class="btn theme-toggle" onclick="toggleTheme()">
+                    <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                    <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                </button>
+            </div>
+        </header>
+        <main class="results-card">
+            ${results.length > 0 ? resultsRows : '<p style="text-align:center; padding: 20px;">No successful proxies found.</p>'}
+        </main>
+        ${actionButtonsHTML}
+        <footer class="footer">
+            <p>© ${new Date().getFullYear()} Proxy IP Checker - By <strong>mehdi-hexing</strong></p>
+        </footer>
+    </div>
+    <div id="toast" class="toast"></div>
+    <script>
+        function showToast(message) { const toast = document.getElementById('toast'); toast.textContent = message; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 3000); }
+        function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { showToast('Copied!'); }).catch(err => { showToast('Copy failed!'); }); }
+        function toggleTheme() {
+            const body = document.body; body.classList.toggle('dark-mode');
+            localStorage.setItem('theme', body.classList.contains('dark-mode') ? 'dark' : 'light');
+        }
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.body.classList.add('dark-mode');
+        }
+    </script>
+</body>
+</html>`;
+}
 
-    if (path.toLowerCase() === '/favicon.ico') {
-        return Response.redirect(faviconURL, 302);
-    }
-    
-    return new Response(generateMainHTML(faviconURL), {
-      headers: { "content-type": "text/html;charset=UTF-8" }
-    });
-  }
-};
-
-
+// --- Your Original HTML For The Main Page ---
 function generateMainHTML(faviconURL) {
   const year = new Date().getFullYear();
   return `<!DOCTYPE html>
@@ -539,7 +558,7 @@ function generateMainHTML(faviconURL) {
     .input-wrapper { width: 100%; max-width: 500px; margin-bottom: 15px; }
     .form-input { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.95rem; box-sizing: border-box; background-color: var(--bg-secondary); color: var(--text-primary); transition: border-color 0.3s ease, background-color 0.3s ease; }
     textarea.form-input { min-height: 100px; resize: vertical; }
-    .btn-primary { background: linear-gradient(135deg, var(--primary-color), #2980b9); color: white; padding: 12px 25px; border: none; border-radius: var(--border-radius-sm); font-size: 1rem; font-weight: 500; cursor: pointer; width: 100%; max-width: 500px; box-sizing: border-box; }
+    .btn-primary { background: linear-gradient(135deg, var(--primary-color), #2980b9); color: white; padding: 12px 25px; border: none; border-radius: var(--border-radius-sm); font-size: 1rem; font-weight: 500; cursor: pointer; width: 100%; max-width: 500px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; }
     .btn-primary:disabled { background: #bdc3c7; cursor: not-allowed; }
     .btn-secondary { background-color: var(--bg-secondary); color: var(--text-primary); padding: 8px 15px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.9rem; cursor: pointer; }
     .loading-spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 1s linear infinite; display: none; margin-left: 8px; }
@@ -590,10 +609,10 @@ function generateMainHTML(faviconURL) {
           <textarea id="rangeInput" class="form-input" rows="3" placeholder="e.g.,&#10;1.1.1.0/24&#10;2.2.2.0-255" autocomplete="off"></textarea>
         </div>
         <button id="checkBtn" class="btn-primary">
-          <span style="display: flex; align-items: center; justify-content: center;">
-            <span class="btn-text">Check</span>
-            <span class="loading-spinner"></span>
-          </span>
+            <span style="display: flex; align-items: center; justify-content: center;">
+                <span class="btn-text">Check</span>
+                <span class="loading-spinner"></span>
+            </span>
         </button>
       </div>
       <div id="result" class="result-section"></div>
@@ -612,7 +631,7 @@ function generateMainHTML(faviconURL) {
        <hr style="border:0; border-top: 1px solid var(--border-color); margin: 20px 0;"/>
        <h4 style="margin-bottom:15px; text-align:center;">Direct URL Usage</h4>
        <p><code>/proxyip/IP1,IP2,...</code> - Server-side check for multiple IPs.</p>
-       <p><code>/iprange/1.1.1.0/24,...</code> - Pre-fills the range input box on the main page.</p>
+       <p><code>/iprange/1.1.1.0-255,...</code> - Server-side check for multiple IP ranges.</p>
        <p><code>/file/https://path.to/your/file.txt</code> - Server-side check for IPs in a remote file.</p>
     </div>
     <footer class="footer">
@@ -624,7 +643,173 @@ function generateMainHTML(faviconURL) {
     <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
     <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
   </button>
-  <script>${clientScript}</script>
+  <script src="/client.js"></script>
 </body>
 </html>`;
+}
+
+// --- Main Fetch Handler ---
+export default {
+    async fetch(request, env, ctx) {
+        const url = new URL(request.url);
+        const path = url.pathname;
+        
+        // --- ADDED: Generic function to process IPs and call the HTML generator ---
+        const processAndRender = async (allIPs, options) => {
+            try {
+                if (!allIPs || allIPs.length === 0) {
+                    return new Response(generateResultsPageHTML({ ...options, results: [], successfulIPsText: '' }), { headers: { 'Content-Type': 'text/html;charset=UTF-8' } });
+                }
+                const uniqueIPs = [...new Set(allIPs)];
+                const checkPromises = uniqueIPs.map(ip => checkProxyIP(ip.includes(':') ? ip : `${ip}:443`));
+                const checkResults = await Promise.allSettled(checkPromises);
+                
+                const successfulChecks = checkResults
+                    .filter(result => result.status === 'fulfilled' && result.value.success)
+                    .map(result => result.value);
+
+                const successfulIPsText = successfulChecks.map(c => c.proxyIP).join('\n');
+                
+                const successfulResultsWithInfo = await Promise.all(successfulChecks.map(async (check) => {
+                    const info = await getIpInfo(check.proxyIP);
+                    return { check, info };
+                }));
+
+                const html = generateResultsPageHTML({ ...options, results: successfulResultsWithInfo, successfulIPsText });
+                return new Response(html, { headers: { 'Content-Type': 'text/html;charset=UTF-8' } });
+            } catch (error) {
+                return new Response(`An error occurred: ${error.message}`, { status: 500 });
+            }
+        };
+
+        // --- NEW: Server-Side Rendering for /proxyip/ ---
+        if (path.toLowerCase().startsWith('/proxyip/')) {
+            const ips_string = decodeURIComponent(path.substring('/proxyip/'.length));
+            const allIPsToTest = ips_string.split(',').map(s => s.trim()).filter(Boolean);
+            return processAndRender(allIPsToTest, {
+                title: 'Proxy IP Results:',
+                pageType: 'proxyip'
+            });
         }
+
+        // --- NEW: Server-Side Rendering for /iprange/ ---
+        if (path.toLowerCase().startsWith('/iprange/')) {
+            const ranges_string = decodeURIComponent(path.substring('/iprange/'.length));
+            const allIPsToTest = ranges_string.split(',').flatMap(range => parseIPRangeServer(range.trim()));
+            return processAndRender(allIPsToTest, {
+                title: "IP Range's Results:",
+                subtitleLabel: "Range's:",
+                subtitleContent: ranges_string,
+                pageType: 'iprange'
+            });
+        }
+        
+        // --- NEW: Server-Side Rendering for /file/ with Pre-processing ---
+        if (path.toLowerCase().startsWith('/file/')) {
+            const targetUrl = request.url.substring(request.url.indexOf('/file/') + 6);
+            if (!targetUrl || !targetUrl.startsWith('http') || (!targetUrl.toLowerCase().endsWith('.txt') && !targetUrl.toLowerCase().endsWith('.csv'))) {
+                return new Response('Invalid URL or file type. Only .txt and .csv are supported.', { status: 400 });
+            }
+            try {
+                const response = await fetch(targetUrl, { headers: {'User-Agent': 'ProxyCheckerWorker/1.0'} });
+                if (!response.ok) throw new Error(`Failed to fetch file: ${response.statusText}`);
+                const text = await response.text();
+                
+                const allFoundIPs = text.match(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?)/g) || [];
+                const filteredIPs = allFoundIPs.filter(ipWithPort => {
+                    const parts = ipWithPort.split(':');
+                    return parts.length === 1 || parts[1] === '443';
+                });
+
+                return processAndRender(filteredIPs, {
+                    title: 'File Test Results:',
+                    subtitleLabel: 'File Link Address:',
+                    subtitleContent: targetUrl,
+                    pageType: 'file'
+                });
+            } catch(e) {
+                return new Response(`Error processing file: ${e.message}`, { status: 500 });
+            }
+        }
+        
+        // --- Your Original Routes for Main Page and API ---
+        if (path === '/client.js') {
+            return new Response(CLIENT_SCRIPT, { headers: { "Content-Type": "application/javascript;charset=UTF-8" } });
+        }
+
+        if (path.toLowerCase().startsWith('/api/')) {
+            const userAgent = request.headers.get('User-Agent') || 'null';
+            const hostname = url.hostname;
+            const timestampForToken = Math.ceil(new Date().getTime() / (1000 * 60 * 30));
+            const temporaryTOKEN = await doubleHash(hostname + timestampForToken + userAgent);
+            
+            const isTokenValid = async () => {
+                const providedToken = url.searchParams.get('token');
+                if (!providedToken) return false;
+                
+                const previousTimestamp = timestampForToken - 1;
+                const previousToken = await doubleHash(hostname + previousTimestamp + userAgent);
+                
+                return providedToken === temporaryTOKEN || providedToken === previousToken;
+            };
+            
+            if (path.toLowerCase() === '/api/get-token') {
+                return new Response(JSON.stringify({ token: temporaryTOKEN }), { headers: { "Content-Type": "application/json" } });
+            }
+
+            if (!(await isTokenValid())) {
+                return new Response(JSON.stringify({ success: false, error: "Invalid or expired session token." }), {
+                    status: 403, headers: { "Content-Type": "application/json" }
+                });
+            }
+
+            if (path.toLowerCase() === '/api/check') {
+                const proxyIPInput = url.searchParams.get('proxyip');
+                if (!proxyIPInput) {
+                    return new Response(JSON.stringify({ success: false, error: 'Missing proxyip parameter' }), { status: 400, headers: { "Content-Type": "application/json" } });
+                }
+                const ipWithPort = proxyIPInput.includes(':') ? proxyIPInput : proxyIPInput + ':443';
+                const host = ipWithPort.split(':')[0].replace(/\\[|\\]/g, '');
+                if (!isIp(host)) {
+                    return new Response(JSON.stringify({ success: false, error: `Input '${host}' is not a valid IPv4 address.` }), { status: 400, headers: { "Content-Type": "application/json" } });
+                }
+                const result = await checkProxyIP(ipWithPort);
+                return new Response(JSON.stringify(result), { headers: { "Content-Type": "application/json" } });
+            }
+            
+            if (path.toLowerCase() === '/api/resolve') {
+                const domain = url.searchParams.get('domain');
+                if (!domain) return new Response(JSON.stringify({ success: false, error: 'Missing domain parameter' }), { status: 400, headers: { "Content-Type": "application/json" } });
+                try {
+                    const ips = await resolveDomain(domain);
+                    return new Response(JSON.stringify({ success: true, domain, ips }), { headers: { "Content-Type": "application/json" } });
+                } catch (error) {
+                    return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: { "Content-Type": "application/json" } });
+                }
+            }
+
+            if (path.toLowerCase() === '/api/ip-info') {
+                let ip = url.searchParams.get('ip') || request.headers.get('CF-Connecting-IP');
+                if (!ip) return new Response(JSON.stringify({ success: false, error: 'IP parameter not provided' }), { status: 400, headers: { "Content-Type": "application/json" } });
+                const data = await getIpInfo(ip.replace(/\\[|\\]/g, ''));
+                return new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } });
+            }
+            
+            return new Response(JSON.stringify({ success: false, error: 'API route not found' }), { status: 404, headers: { "Content-Type": "application/json" } });
+        }
+        
+        const faviconURL = (env && env.ICO) ? env.ICO : 'https://cf-assets.www.cloudflare.com/dzlvafdwdttg/19kSkLSfWtDcspvQI5pit4/c5630cf25d589a0de91978ca29486259/performance-acceleration-bolt.svg';
+
+        if (path.toLowerCase() === '/favicon.ico') {
+            return Response.redirect(faviconURL, 302);
+        }
+        
+        if (path === '/') {
+            return new Response(generateMainHTML(faviconURL), {
+                headers: { "content-type": "text/html;charset=UTF-8" }
+            });
+        }
+        
+        return new Response('Not Found', { status: 404 });
+    }
+};
