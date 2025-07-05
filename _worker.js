@@ -800,4 +800,4 @@ function generateMainHTML(faviconURL) {
   </script>
 </body>
 </html>`;
-        }
+      }
