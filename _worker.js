@@ -668,8 +668,7 @@ function generateMainHTML(faviconURL) {
             summaryHeader.innerHTML += `<p style="margin-bottom: 5px;"><strong>Domains being tested:</strong></p>
                                         <div style="padding-left: 15px; margin-bottom: 10px;">${domains.map(d => `<code>${d}</code>`).join('<br>')}</div>`;
         }
-        summaryHeader.innerHTML += '<hr>';
-
+        
         lines.forEach(line => {
             if (isDomain(line.split(':')[0])) {
                 resolvePromises.push(
@@ -691,6 +690,9 @@ function generateMainHTML(faviconURL) {
         
         const ipCountSpan = document.createElement('p');
         ipCountSpan.style.color = 'var(--text-light)';
+        ipCountSpan.style.borderTop = '1px solid var(--border-color)';
+        ipCountSpan.style.paddingTop = '15px';
+        ipCountSpan.style.marginTop = '15px';
         ipCountSpan.innerHTML = `Found ${allIPsToTest.length} unique IPs to test...`;
         summaryHeader.appendChild(ipCountSpan);
 
@@ -792,4 +794,4 @@ function generateMainHTML(faviconURL) {
   </script>
 </body>
 </html>`;
-                                                                                    }
+  }
