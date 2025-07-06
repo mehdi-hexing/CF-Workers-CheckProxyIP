@@ -389,7 +389,7 @@ function generateMainHTML(faviconURL) {
           } else {
             const resultCard = document.createElement('div');
             resultCard.classList.add('result-card', 'result-error');
-            resultCard.innerHTML = `<h3> Unrecognized Format </h3><p>Input '${line}' is not a valid IP or domain.</p>`;
+            resultCard.innerHTML = `<h3> Unrecognized format </h3><p>Input '${line}' is not a valid IP or domain.</p>`;
             document.getElementById('result').appendChild(resultCard);
           }
         });
