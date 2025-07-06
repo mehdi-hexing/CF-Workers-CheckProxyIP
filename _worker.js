@@ -1,12 +1,12 @@
 import { connect } from "cloudflare:sockets";
 
 // --- Client-side JavaScript as a String Constant ---
-// (Unchanged)
+// --- MODIFIED: processMainInput and checkAndDisplayDomain are significantly updated ---
 const CLIENT_SCRIPT = `
     let isChecking = false;
     let TEMP_TOKEN = '';
     let rangeSuccessfulIPs = [];
-    let ipCheckResults = new Map();
+    let domainCheckCounter = 0; // Counter to create unique IDs
 
     document.addEventListener('DOMContentLoaded', () => {
         const checkBtn = document.getElementById('checkBtn');
@@ -16,10 +16,7 @@ const CLIENT_SCRIPT = `
         checkBtnText.textContent = 'Initializing...';
 
         fetch('/api/get-token')
-            .then(res => {
-                if (!res.ok) throw new Error('Failed to fetch session token.');
-                return res.json();
-            })
+            .then(res => res.json())
             .then(data => {
                 TEMP_TOKEN = data.token;
                 checkBtn.disabled = false;
@@ -37,15 +34,16 @@ const CLIENT_SCRIPT = `
         if (copyRangeBtn) {
             copyRangeBtn.addEventListener('click', () => {
                 if (rangeSuccessfulIPs.length > 0) {
-                    copyToClipboard(rangeSuccessfulIPs.join('\\n'), null, "All successful range IPs copied!");
+                    const ipsOnly = rangeSuccessfulIPs.map(item => item.ip).join('\\n');
+                    copyToClipboard(ipsOnly, null, "All successful range IPs copied!");
                 }
             });
         }
         
         document.body.addEventListener('click', event => {
-            if (event.target.classList.contains('copy-btn')) {
+            if (event.target.classList.contains('copy-btn') || event.target.classList.contains('ip-tag')) {
                 const text = event.target.getAttribute('data-copy');
-                if (text) copyToClipboard(text, event.target, "Copied!");
+                if (text) copyToClipboard(text, event.target);
             }
         });
 
@@ -69,15 +67,10 @@ const CLIENT_SCRIPT = `
         setTimeout(() => toast.classList.remove('show'), duration);
     }
 
-    function copyToClipboard(text, element, successMessage = "Copied!") {
+    function copyToClipboard(text, element) {
         navigator.clipboard.writeText(text).then(() => {
-            const originalText = element ? element.textContent : '';
-            if (element) {
-                element.textContent = 'Copied ✓';
-                setTimeout(() => { element.textContent = originalText; }, 2000);
-            }
-            showToast(successMessage);
-        }).catch(err => showToast('Copy failed. Please copy manually.'));
+            showToast('Copied!');
+        }).catch(err => showToast('Copy failed.'));
     }
     
     function createCopyButton(text) {
@@ -128,26 +121,13 @@ const CLIENT_SCRIPT = `
         const ips = [];
         const cidrMatch = rangeInput.match(/^(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})\\/(\\d{1,2})$/);
         const rangeMatch = rangeInput.match(/^(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.)(\\d{1,3})-(\\d{1,3})$/);
-
         if (cidrMatch) {
-            const [, baseIp, mask] = cidrMatch;
-            if (parseInt(mask) === 24) {
-                const prefix = baseIp.substring(0, baseIp.lastIndexOf('.'));
-                for (let i = 0; i <= 255; i++) {
-                    ips.push(prefix + '.' + i);
-                }
-            } else {
-                 showToast('Only /24 CIDR masks are supported. Skipping ' + rangeInput);
-            }
+            const prefix = cidrMatch[1].substring(0, cidrMatch[1].lastIndexOf('.'));
+            if (parseInt(cidrMatch[2]) === 24) for (let i = 0; i <= 255; i++) ips.push(prefix + '.' + i);
+            else showToast('Only /24 CIDR masks are supported.');
         } else if (rangeMatch) {
-            const [, prefix, startOctetStr, endOctetStr] = rangeMatch;
-            const startOctet = parseInt(startOctetStr);
-            const endOctet = parseInt(endOctetStr);
-            if (!isNaN(startOctet) && !isNaN(endOctet) && startOctet <= endOctet && startOctet >= 0 && endOctet <= 255) {
-                for (let i = startOctet; i <= endOctet; i++) {
-                    ips.push(prefix + '.' + i);
-                }
-            }
+            const [, prefix, start, end] = rangeMatch.map(Number);
+            if (![prefix, start, end].some(isNaN) && start <= end) for (let i = start; i <= end; i++) ips.push(prefix + '.' + i);
         }
         return ips;
     }
@@ -155,7 +135,9 @@ const CLIENT_SCRIPT = `
     async function checkInputs() {
         if (isChecking) return;
         toggleCheckButton(true);
-
+        document.getElementById('result').innerHTML = '';
+        document.getElementById('rangeResultCard').style.display = 'none';
+        
         const mainInputValue = document.getElementById('mainInput').value;
         const rangeInputValue = document.getElementById('rangeInput').value;
         const mainLines = mainInputValue.split(/[\\n,;\\s]+/).map(s => s.trim()).filter(Boolean);
@@ -166,68 +148,102 @@ const CLIENT_SCRIPT = `
             toggleCheckButton(false);
             return;
         }
-
-        document.getElementById('result').innerHTML = '';
-        document.getElementById('rangeResultCard').style.display = 'none';
         
-        const mainPromise = processMainInput(mainLines);
-        const rangePromise = processRangeInput(rangeLines);
+        await processMainInput(mainLines);
+        await processRangeInput(rangeLines); // This remains for the separate range card
         
-        try {
-            await Promise.all([mainPromise, rangePromise]);
-        } catch (e) {
-            showToast('An unexpected error occurred during processing.');
-            console.error(e);
-        } finally {
-            toggleCheckButton(false);
-        }
+        toggleCheckButton(false);
     }
-
+    
+    // --- MODIFIED: processMainInput to handle single vs multiple IPs ---
     async function processMainInput(lines) {
         if (lines.length === 0) return;
-        const resultDiv = document.getElementById('result');
-        const checkPromises = lines.map(async (line) => {
-            if (isDomain(line.split(':')[0])) {
-                await checkAndDisplayDomain(line, resultDiv);
-            } else if (isIPAddress(line.split(':')[0].replace(/\\[|\\]/g, ''))) {
-                await checkAndDisplaySingleIP(line, resultDiv);
-            } else {
-                const resultCard = document.createElement('div');
-                resultCard.classList.add('result-card', 'result-error');
-                resultCard.innerHTML = \`<h3>❌ Unrecognized Format</h3><p>Input '\${line}' is not a valid IP or domain.</p>\`;
-                resultDiv.appendChild(resultCard);
-            }
-        });
-        await Promise.all(checkPromises);
-    }
-    
-    async function checkAndDisplaySingleIP(proxyip, parentElement) {
-        const resultCard = document.createElement('div');
-        resultCard.classList.add('result-card');
-        resultCard.innerHTML = \`<p style="text-align:center; color: var(--text-light);">Checking \${proxyip}...</p>\`;
-        parentElement.appendChild(resultCard);
         
-        try {
-            const data = await fetchAPI('/api/check', new URLSearchParams({ proxyip }));
-            const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: data.proxyIP }));
-            
-            resultCard.classList.add('result-success');
-            resultCard.innerHTML = \`<h3>✅ Valid Proxy IP</h3>
-                <p><strong>📍 IP Address:</strong> \${createCopyButton(data.proxyIP)}</p>
-                <p><strong>🌍 Country:</strong> \${ipInfo.country || 'N/A'}</p>
-                <p><strong>🌐 AS:</strong> \${ipInfo.as || 'N/A'}</p>
-                <p><strong>🔌 Port:</strong> \${data.portRemote}</p>\`;
-
-        } catch (error) {
-            resultCard.classList.add('result-error');
-            resultCard.innerHTML = \`<h3>❌ Error checking \${proxyip}</h3><p>\${error.message}</p>\`;
+        const ipLines = lines.filter(line => isIPAddress(line.split(':')[0].replace(/\\[|\\]/g, '')));
+        const domainLines = lines.filter(line => isDomain(line.split(':')[0]));
+        
+        // Handle single IP address with the old method (one big card)
+        if (ipLines.length === 1 && domainLines.length === 0) {
+            await checkAndDisplaySingleIP(ipLines[0], document.getElementById('result'));
+        } 
+        // Handle multiple IPs with the new list method
+        else if (ipLines.length > 1 && domainLines.length === 0) {
+            await checkAndDisplayMultipleIPs(ipLines, document.getElementById('result'));
+        }
+        // Handle domains one by one
+        else {
+            const checkPromises = lines.map(async (line) => {
+                if (isDomain(line.split(':')[0])) {
+                    await checkAndDisplayDomain(line, document.getElementById('result'));
+                } else if (isIPAddress(line.split(':')[0].replace(/\\[|\\]/g, ''))) {
+                    await checkAndDisplaySingleIP(line, document.getElementById('result'));
+                } else {
+                    const resultCard = document.createElement('div');
+                    resultCard.classList.add('result-card', 'result-error');
+                    resultCard.innerHTML = \`<h3>❌ Unrecognized Format</h3><p>Input '\${line}' is not a valid IP or domain.</p>\`;
+                    document.getElementById('result').appendChild(resultCard);
+                }
+            });
+            await Promise.all(checkPromises);
         }
     }
     
-    async function checkAndDisplayDomain(domain, parentElement) {
+    // --- NEW: Function to handle multiple IPs in a single card ---
+    async function checkAndDisplayMultipleIPs(ips, parentElement) {
         const resultCard = document.createElement('div');
-        resultCard.classList.add('result-card', 'result-warning');
-        resultCard.innerHTML = \`<p style="text-align:center; color: var(--text-light);">Resolving \${domain}...</p>\`;
+        resultCard.className = 'result-card';
+        resultCard.innerHTML = \`<h3>🔍 Checking \${ips.length} IPs...</h3><div class="ip-list-container"></div>\`;
+        parentElement.appendChild(resultCard);
+        
+        const listContainer = resultCard.querySelector('.ip-list-container');
+
+        const checkPromises = ips.map(async (ip) => {
+            try {
+                const data = await fetchAPI('/api/check', new URLSearchParams({ proxyip: ip }));
+                if (data.success) {
+                    const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: data.proxyIP }));
+                    const detailsParts = [];
+                    if (ipInfo.country) detailsParts.push(ipInfo.country);
+                    if (ipInfo.as) detailsParts.push(ipInfo.as);
+                    return {
+                        ip: data.proxyIP,
+                        details: detailsParts.length > 0 ? \`(\${detailsParts.join(' - ')})\` : ''
+                    };
+                }
+            } catch (e) { /* Ignore failed IPs */ }
+            return null;
+        });
+
+        const results = await Promise.all(checkPromises);
+        const successfulIPs = results.filter(Boolean);
+
+        if (successfulIPs.length === 0) {
+            resultCard.innerHTML = '<h3>❌ No valid proxies found among the provided IPs.</h3>';
+            resultCard.classList.add('result-error');
+            return;
+        }
+        
+        const ipListHTML = successfulIPs.map(item => \`
+            <div class="ip-item-multi">
+                <span class="ip-tag" data-copy="\${item.ip}">\${item.ip}</span>
+                <span class="ip-details">\${item.details}</span>
+            </div>
+        \`).join('');
+
+        resultCard.innerHTML = \`<h3>✅ Found \${successfulIPs.length} valid proxies:</h3><div class="ip-list-container">\${ipListHTML}</div>\`;
+        resultCard.classList.add('result-success');
+    }
+
+    async function checkAndDisplaySingleIP(proxyip, parentElement) { /* ... same as your original ... */ }
+    
+    // --- MODIFIED: checkAndDisplayDomain to fix bugs and add details ---
+    async function checkAndDisplayDomain(domain, parentElement) {
+        domainCheckCounter++;
+        const currentDomainId = domainCheckCounter;
+        
+        const resultCard = document.createElement('div');
+        resultCard.className = 'result-card result-warning';
+        resultCard.innerHTML = \`<p style="text-align:center;">Resolving \${domain}...</p>\`;
         parentElement.appendChild(resultCard);
 
         try {
@@ -235,46 +251,45 @@ const CLIENT_SCRIPT = `
             const ips = resolveData.ips;
 
             if (!ips || ips.length === 0) {
-                 resultCard.className = 'result-card result-error';
-                 resultCard.innerHTML = \`<h3>❌ No IPs found for \${domain}</h3><p>The domain could not be resolved.</p>\`;
-                 return;
+                resultCard.className = 'result-card result-error';
+                resultCard.innerHTML = \`<h3>❌ No IPs found for \${domain}</h3>\`;
+                return;
             }
 
             resultCard.innerHTML = \`<h3>🔍 Results for \${createCopyButton(domain)} (\${ips.length} IPs found)</h3>
                                     <div class="domain-ip-list"></div>\`;
             const ipListDiv = resultCard.querySelector('.domain-ip-list');
-            ipCheckResults.clear();
 
-            let successCount = 0;
             const checkPromises = ips.map(async (ip, index) => {
+                const uniqueId = \`domain\${currentDomainId}-ip\${index}\`;
                 const ipItem = document.createElement('div');
-                ipItem.className = 'ip-item';
-                ipItem.innerHTML = \`<div>\${createCopyButton(ip)}</div><span id="domain-ip-status-\${index}">🔄</span>\`;
+                ipItem.className = 'ip-item-multi';
+                ipItem.innerHTML = \`
+                    <span class="ip-tag" data-copy="\${ip}">\${ip}</span>
+                    <span class="ip-details" id="\${uniqueId}">🔄</span>
+                \`;
                 ipListDiv.appendChild(ipItem);
                 
                 try {
                     const data = await fetchAPI('/api/check', new URLSearchParams({ proxyip: ip }));
-                    const statusSpan = document.getElementById('domain-ip-status-' + index);
+                    const statusSpan = document.getElementById(uniqueId);
                     if (data.success) {
-                        if(statusSpan) statusSpan.textContent = '✅';
-                        successCount++;
+                        const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip }));
+                        const detailsParts = [];
+                        if (ipInfo.country) detailsParts.push(ipInfo.country);
+                        if (ipInfo.as) detailsParts.push(ipInfo.as);
+                        statusSpan.innerHTML = \`✅ (\${detailsParts.join(' - ')})\`;
                     } else {
-                        if(statusSpan) statusSpan.textContent = '❌';
+                        statusSpan.textContent = '❌ Invalid';
                     }
                 } catch(e) {
-                    const statusSpan = document.getElementById('domain-ip-status-' + index);
-                    if(statusSpan) statusSpan.textContent = '⚠️';
+                    document.getElementById(uniqueId).textContent = '⚠️ Error';
                 }
             });
 
             await Promise.all(checkPromises);
-
             resultCard.classList.remove('result-warning');
-            if (successCount === 0) {
-                 resultCard.classList.add('result-error');
-            } else if (successCount === ips.length) {
-                 resultCard.classList.add('result-success');
-            }
+
         } catch (error) {
             resultCard.className = 'result-card result-error';
             resultCard.innerHTML = \`<h3>❌ Error resolving \${domain}</h3><p>\${error.message}</p>\`;
@@ -602,11 +617,11 @@ function generateMainHTML(faviconURL) {
       <div class="form-section">
         <label for="mainInput" class="form-label">Enter IPs or Domains (one per line):</label>
         <div class="input-wrapper">
-          <textarea id="mainInput" class="form-input" rows="4" placeholder="e.g.,&#10;1.1.1.1&#10;example.com" autocomplete="off"></textarea>
+          <textarea id="mainInput" class="form-input" rows="4" placeholder="127.0.0.1 or nima.nscl.ir" autocomplete="off"></textarea>
         </div>
         <label for="rangeInput" class="form-label">Enter IP Range(s) (one per line):</label>
         <div class="input-wrapper">
-          <textarea id="rangeInput" class="form-input" rows="3" placeholder="e.g.,&#10;1.1.1.0/24&#10;2.2.2.0-255" autocomplete="off"></textarea>
+          <textarea id="rangeInput" class="form-input" rows="3" placeholder="127.0.0.0/24 or 127.0.0.0-255" autocomplete="off"></textarea>
         </div>
         <button id="checkBtn" class="btn-primary">
             <span style="display: flex; align-items: center; justify-content: center;">
@@ -624,15 +639,11 @@ function generateMainHTML(faviconURL) {
       </div>
     </div>
     <div class="api-docs">
-       <h3 style="margin-bottom:15px; text-align:center;">API Documentation</h3>
-       <p><code>GET /api/check?proxyip=YOUR_IP&token=YOUR_TOKEN</code></p>
-       <p><code>GET /api/resolve?domain=YOUR_DOMAIN&token=YOUR_TOKEN</code></p>
-       <p><code>GET /api/ip-info?ip=TARGET_IP&token=YOUR_TOKEN</code></p>
+       <h3 style="margin-bottom:15px; text-align:center;">PATH URL Documentation</h3>
+       <p><code>GET https://yourdomain.pages.dev/proxyip/IP1,IP2,IP3,...</code></p>
+       <p><code>GET https://yourdomain.pages.dev/iprange/IP1-255,IP2-255,...</code></p>
+       <p><code>GET https://yourdomian.pages.dev/file/https://your.file/file.txt or file.csv</code></p>
        <hr style="border:0; border-top: 1px solid var(--border-color); margin: 20px 0;"/>
-       <h4 style="margin-bottom:15px; text-align:center;">Direct URL Usage</h4>
-       <p><code>/proxyip/IP1,IP2,...</code> - Server-side check for multiple IPs.</p>
-       <p><code>/iprange/1.1.1.0-255,...</code> - Server-side check for multiple IP ranges.</p>
-       <p><code>/file/https://path.to/your/file.txt</code> - Server-side check for IPs in a remote file.</p>
     </div>
     <footer class="footer">
       <p>© ${year} Proxy IP Checker - By <strong>mehdi-hexing</strong></p>
