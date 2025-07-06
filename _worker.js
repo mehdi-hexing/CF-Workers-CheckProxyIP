@@ -1,4 +1,4 @@
-import { connect } from "cloudflare:sockets";
+import { connect } from 'cloudflare:sockets';
 
 // --- Server-Side Helper Functions ---
 
@@ -39,79 +39,71 @@ async function resolveDomain(domain) {
   }
 }
 
-async function checkProxyIP(proxyIPWithPort) {
+async function checkProxyIP(proxyIP) {
   let portRemote = 443;
-  let hostToCheck = proxyIPWithPort;
+  let hostToCheck = proxyIP;
 
-  if (proxyIPWithPort.includes('.tp')) {
-    const portMatch = proxyIPWithPort.match(/\.tp(\d+)\./);
+  if (proxyIP.includes('.tp')) {
+    const portMatch = proxyIP.match(/\.tp(\d+)\./);
     if (portMatch) portRemote = parseInt(portMatch[1], 10);
-    hostToCheck = proxyIPWithPort.split('.tp')[0];
-  } else if (proxyIPWithPort.includes('[') && proxyIPWithPort.includes(']:')) {
-    portRemote = parseInt(proxyIPWithPort.split(']:')[1], 10);
-    hostToCheck = proxyIPWithPort.split(']:')[0] + ']';
-  } else if (proxyIPWithPort.includes(':') && !proxyIPWithPort.startsWith('[')) {
-    const parts = proxyIPWithPort.split(':');
-    const potentialPort = parts[parts.length - 1];
-    if (parts.length > 1 && !isNaN(parseInt(potentialPort, 10))) {
-        hostToCheck = parts.slice(0, -1).join(':');
-        portRemote = parseInt(potentialPort, 10);
+    hostToCheck = proxyIP.split('.tp')[0];
+  } else if (proxyIP.includes('[') && proxyIP.includes(']:')) {
+    portRemote = parseInt(proxyIP.split(']:')[1], 10);
+    hostToCheck = proxyIP.split(']:')[0] + ']';
+  } else if (proxyIP.includes(':') && !proxyIP.startsWith('[')) {
+    const parts = proxyIP.split(':');
+    if (parts.length === 2 && parts[0].includes('.')) {
+      hostToCheck = parts[0];
+      portRemote = parseInt(parts[1], 10) || 443;
     }
   }
-  
-  hostToCheck = hostToCheck.replace(/\[|\]/g, '');
 
   let tcpSocket;
   try {
-    tcpSocket = connect({ hostname: hostToCheck, port: portRemote });
+    tcpSocket = connect({ hostname: hostToCheck.replace(/\[|\]/g, ''), port: portRemote });
     const writer = tcpSocket.writable.getWriter();
-    const httpRequest = `GET /cdn-cgi/trace HTTP/1.1\r\nHost: speed.cloudflare.com\r\nUser-Agent: CheckProxyIP/1.0\r\nConnection: close\r\n\r\n`;
+    const httpRequest = 'GET /cdn-cgi/trace HTTP/1.1\r\nHost: speed.cloudflare.com\r\nUser-Agent: checkip/mehdi/\r\nConnection: close\r\n\r\n';
     await writer.write(new TextEncoder().encode(httpRequest));
 
     const reader = tcpSocket.readable.getReader();
     let responseData = new Uint8Array(0);
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 5000));
-    
-    while(responseData.length < 4096) {
-        const { value, done } = await Promise.race([reader.read(), timeout]);
-        if (done) break;
-        if(value) {
-            const temp = new Uint8Array(responseData.length + value.length);
-            temp.set(responseData);
-            temp.set(value, responseData.length);
-            responseData = temp;
-        }
-        if (new TextDecoder().decode(responseData).includes("\r\n\r\n")) break;
-    }
-    
-    const responseText = new TextDecoder().decode(responseData);
-    const statusMatch = responseText.match(/^HTTP\/1\.\d\s(\d+)/);
-    const statusCode = statusMatch ? parseInt(statusMatch[1], 10) : 0;
-    const isSuccess = statusCode === 400 && responseText.includes("The plain HTTP request was sent to HTTPS port");
 
-    return { success: isSuccess, proxyIP: hostToCheck, portRemote, statusCode, responseSize: responseData.length, timestamp: new Date().toISOString() };
+    while (responseData.length < 4096) {
+      const { value, done } = await Promise.race([reader.read(), timeout]);
+      if (done) break;
+      if (value) {
+        const newData = new Uint8Array(responseData.length + value.length);
+        newData.set(responseData);
+        newData.set(value, responseData.length);
+        responseData = newData;
+        if (new TextDecoder().decode(responseData).includes('\r\n\r\n')) break;
+      }
+    }
+
+    const responseText = new TextDecoder().decode(responseData);
+    const statusMatch = responseText.match(/^HTTP\/\d\.\d\s+(\d+)/i);
+    const statusCode = statusMatch ? parseInt(statusMatch[1], 10) : null;
+    const isSuccessful = statusCode !== null && responseText.includes('cloudflare') && (responseText.includes('plain HTTP request') || responseText.includes('400 Bad Request')) && responseData.length > 100;
+
+    return { success: isSuccessful, proxyIP: hostToCheck, portRemote, statusCode, responseSize: responseData.length, timestamp: new Date().toISOString() };
   } catch (error) {
     return { success: false, proxyIP: hostToCheck, portRemote, timestamp: new Date().toISOString(), error: error.message };
   } finally {
-      if (tcpSocket) {
-        try { await tcpSocket.close(); } catch (e) {}
-      }
+    if (tcpSocket) {
+      try { await tcpSocket.close(); } catch (e) {}
+    }
   }
 }
 
 async function getIpInfo(ip) {
     try {
-        const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,message,country,countryCode,as`);
-        if (!response.ok) {
-            return { country: 'N/A', countryCode: 'N/A', as: 'N/A' };
-        }
+        const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,message,country,countryCode,as&lang=en`);
+        if (!response.ok) return { country: 'N/A', countryCode: 'N/A', as: 'N/A' };
         const data = await response.json();
-        if (data.status === 'fail') {
-            return { country: 'N/A', countryCode: 'N/A', as: 'N/A' };
-        }
+        if (data.status === 'fail') return { country: 'N/A', countryCode: 'N/A', as: 'N/A' };
         return data;
     } catch (e) {
-        console.error(`Failed to get IP info for ${ip}:`, e);
         return { country: 'N/A', countryCode: 'N/A', as: 'N/A' };
     }
 }
@@ -234,11 +226,19 @@ const CLIENT_SCRIPT = `
     let isChecking = false;
     let TEMP_TOKEN = '';
     let domainCheckCounter = 0;
+    let currentSuccessfulRangeIPs = [];
 
     document.addEventListener('DOMContentLoaded', () => {
         fetch('/api/get-token').then(res => res.json()).then(data => { TEMP_TOKEN = data.token; });
         document.getElementById('checkBtn').addEventListener('click', checkInputs);
         
+        document.getElementById('copyRangeBtn').addEventListener('click', () => {
+            if (currentSuccessfulRangeIPs.length > 0) {
+                const textToCopy = currentSuccessfulRangeIPs.map(item => item.ip).join('\\n');
+                copyToClipboard(textToCopy, null, "All successful IPs copied!");
+            }
+        });
+
         document.body.addEventListener('click', event => {
             const target = event.target;
             if (target.classList.contains('copy-btn') || target.classList.contains('ip-tag') || target.classList.contains('range-tag')) {
@@ -272,14 +272,14 @@ const CLIENT_SCRIPT = `
         setTimeout(() => toast.classList.remove('show'), duration);
     }
 
-    function copyToClipboard(text, element) {
+    function copyToClipboard(text, element, successMessage = "Copied!") {
         navigator.clipboard.writeText(text).then(() => {
             const originalText = element ? element.textContent : '';
             if (element) {
                 element.textContent = 'Copied ✓';
-                setTimeout(() => { element.textContent = originalText; }, 2000);
+                setTimeout(() => { if(element) element.textContent = originalText; }, 2000);
             } else {
-                 showToast("Copied!");
+                 showToast(successMessage);
             }
         }).catch(err => showToast('Copy failed.'));
     }
@@ -309,7 +309,7 @@ const CLIENT_SCRIPT = `
         return data;
     }
 
-    const isIPAddress = (input) => /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(input.split(':')[0].replace(/[\\[\\]]/g, ''));
+    const isIPAddress = (input) => /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(input.split(':')[0].replace(/[\\[\\]]/g, ''));
     const isDomain = (input) => /^(?!-)[a-zA-Z0-9-]+([\\-\\.]{1}[a-zA-Z0-9]+)*\\.[a-zA-Z]{2,}$/.test(input.split(':')[0]);
     const isIPRange = (input) => /^(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})\\/24$/.test(input) || /^(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.)(\\d{1,3})-(\\d{1,3})$/.test(input);
 
@@ -347,19 +347,33 @@ const CLIENT_SCRIPT = `
         
         toggleCheckButton(true);
         document.getElementById('result').innerHTML = '';
-        
-        if (mainInputs.length === 1 && rangeInputs.length === 0) {
-            const singleInput = mainInputs[0];
-            if (isDomain(singleInput)) await checkAndDisplayDomain_graphical(singleInput);
-            else if (isIPAddress(singleInput)) await checkAndDisplaySingleIP_graphical(singleInput);
-            else document.getElementById('result').innerHTML = '<div class="result-card result-error"><h3>❌ Unrecognized Format</h3></div>';
-        } else {
-            await processMultipleInputs(mainInputs, rangeInputs);
+        document.getElementById('rangeResultCard').style.display = 'none';
+
+        if (mainInputs.length > 0) {
+            await processMainInputs(mainInputs);
+        }
+        if (rangeInputs.length > 0) {
+            await processRangeInputs_simpleList(rangeInputs);
         }
 
         toggleCheckButton(false);
     }
     
+    async function processMainInputs(inputs) {
+        if (inputs.length === 1) {
+            const singleInput = inputs[0];
+            if (isDomain(singleInput)) {
+                await checkAndDisplayDomain_graphical(singleInput);
+            } else if (isIPAddress(singleInput)) {
+                await checkAndDisplaySingleIP_graphical(singleInput);
+            } else {
+                document.getElementById('result').innerHTML = '<div class="result-card result-error"><h3>❌ Unrecognized Format</h3></div>';
+            }
+            return;
+        }
+        await processMultipleItems_unified(inputs);
+    }
+
     async function checkAndDisplaySingleIP_graphical(proxyip) {
         const resultDiv = document.getElementById('result');
         const resultCard = document.createElement('div');
@@ -373,7 +387,7 @@ const CLIENT_SCRIPT = `
                 const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: data.proxyIP }));
                 resultCard.classList.add('result-success');
                 resultCard.innerHTML = \`
-                    <h3>✅ Valid Proxy IP</h3>
+                    <h3><span class="status-icon-prefix">✔</span> Valid Proxy IP</h3>
                     <p><strong>IP Address:</strong> <span class="copy-btn" data-copy="\${data.proxyIP}">\${data.proxyIP}</span></p>
                     <p><strong>Country:</strong> \${ipInfo.country || 'N/A'}</p>
                     <p><strong>AS:</strong> \${ipInfo.as || 'N/A'}</p>
@@ -382,7 +396,7 @@ const CLIENT_SCRIPT = `
             } else {
                 resultCard.classList.add('result-error');
                 resultCard.innerHTML = \`
-                    <h3>❌ Invalid Proxy IP</h3>
+                    <h3><span class="status-icon-prefix">✖</span> Invalid Proxy IP</h3>
                     <p><strong>IP Address:</strong> <span class="copy-btn" data-copy="\${proxyip}">\${proxyip}</span></p>
                     <p><strong>Error:</strong> \${data.error || 'Check failed.'}</p>
                 \`;
@@ -397,7 +411,7 @@ const CLIENT_SCRIPT = `
         const resultDiv = document.getElementById('result');
         const resultCard = document.createElement('div');
         resultCard.className = 'result-card result-warning';
-        resultCard.innerHTML = '<p style="text-align:center;">Resolving domain...</p>';
+        resultCard.innerHTML = '<h3><span class="status-icon-prefix">⟳</span> Resolving Domain...</h3>';
         resultDiv.appendChild(resultCard);
 
         try {
@@ -407,7 +421,7 @@ const CLIENT_SCRIPT = `
             }
             const ips = resolveData.ips;
             resultCard.innerHTML = \`
-                <h3>🔍 Checking \${ips.length} IPs for \${domain}</h3>
+                <h3><span class="status-icon-prefix">⟳</span> Checking \${ips.length} IPs for \${domain}</h3>
                 <div class="domain-ip-list"></div>
             \`;
             const ipListDiv = resultCard.querySelector('.domain-ip-list');
@@ -415,21 +429,25 @@ const CLIENT_SCRIPT = `
             let successCount = 0;
             const checkPromises = ips.map(async (ip, index) => {
                 const ipItem = document.createElement('div');
-                ipItem.className = 'ip-item-multi'; // Using new class for consistency
+                ipItem.className = 'ip-item-multi';
                 ipItem.innerHTML = \`
                     <span class="ip-tag" data-copy="\${ip}">\${ip}</span>
                     <span class="ip-details" id="status-\${index}">🔄</span>
                 \`;
                 ipListDiv.appendChild(ipItem);
                 
-                const checkData = await fetchAPI('/api/check', new URLSearchParams({ proxyip: ip }));
-                const statusSpan = document.getElementById(\`status-\${index}\`);
-                if (checkData.success) {
-                    successCount++;
-                    const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: ip }));
-                    statusSpan.innerHTML = \`✅ (\${ipInfo.country || 'N/A'})\`;
-                } else {
-                    statusSpan.textContent = '❌';
+                try {
+                    const checkData = await fetchAPI('/api/check', new URLSearchParams({ proxyip: ip }));
+                    const statusSpan = document.getElementById(\`status-\${index}\`);
+                    if (checkData.success) {
+                        successCount++;
+                        const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: ip }));
+                        statusSpan.innerHTML = \`✅ (\${ipInfo.country || 'N/A'})\`;
+                    } else {
+                        statusSpan.textContent = '❌';
+                    }
+                } catch(e) {
+                     document.getElementById(\`status-\${index}\`).textContent = '⚠️';
                 }
             });
 
@@ -437,6 +455,8 @@ const CLIENT_SCRIPT = `
 
             resultCard.classList.remove('result-warning');
             resultCard.classList.add(successCount > 0 ? 'result-success' : 'result-error');
+            resultCard.querySelector('h3 .status-icon-prefix').textContent = successCount > 0 ? '✔' : '✖';
+            resultCard.querySelector('h3').childNodes[1].nodeValue = \` \${successCount} of \${ips.length} IPs are valid\`;
 
         } catch (error) {
             resultCard.className = 'result-card result-error';
@@ -463,13 +483,13 @@ const CLIENT_SCRIPT = `
             });
         }
         
-        let directAndRangeHTML = '';
-        const otherIPsToTest = [...new Set([...directIPs, ...rangeInputs.flatMap(parseIPRange)])];
-        if(otherIPsToTest.length > 0) {
-            directAndRangeHTML += '<h2>Direct IP & Range Results</h2><div class="domain-ip-list" id="direct-results-list"></div>';
+        // This part is for rendering other IPs if they exist alongside domains.
+        // It's kept separate from the dedicated range checker.
+        if (directIPs.length > 0) {
+            finalHTML += '<h2>Direct IP Results</h2><div class="domain-ip-list" id="direct-results-list"><p style="text-align:center;color:var(--text-light)">Checking...</p></div>';
         }
 
-        resultDiv.innerHTML = \`<div class="result-card">\${finalHTML}\${directAndRangeHTML}</div>\`;
+        resultDiv.innerHTML = \`<div class="result-card">\${finalHTML}</div>\`;
 
         // Asynchronously process domains
         let domainCounter = 0;
@@ -501,10 +521,9 @@ const CLIENT_SCRIPT = `
             }
         }
         
-        // Asynchronously process direct IPs and ranges
-        if (otherIPsToTest.length > 0) {
+        if (directIPs.length > 0) {
             const directResultsContainer = document.getElementById('direct-results-list');
-            const checkPromises = otherIPsToTest.map(async ip => {
+            const checkPromises = directIPs.map(async ip => {
                  const checkData = await fetchAPI('/api/check', new URLSearchParams({ proxyip: ip }));
                  if(checkData.success) {
                      const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: checkData.proxyIP }));
@@ -516,27 +535,90 @@ const CLIENT_SCRIPT = `
             allSuccessfulIPs.push(...successfulDirectIPs.map(item => item.ip));
 
             if (successfulDirectIPs.length > 0) {
-                 const directIpsInList = directIPs.length > 0;
                  directResultsContainer.innerHTML = successfulDirectIPs.map(item => {
-                    // Check if the current IP was from the range or direct input
-                    const fromRange = !directIpsInList || !directIPs.includes(item.ip);
-                    let details = \`(\${item.info.country || 'N/A'} - \${item.info.as || 'N/A'})\`;
-                    // As per final request, only show country code for ranges
-                    if(fromRange && rangeInputs.length > 0) {
-                        details = item.info.countryCode || 'N/A';
-                    }
+                    const details = \`(\${item.info.country || 'N/A'} - \${item.info.as || 'N/A'})\`;
                     return \`<div class="ip-item-multi"><span class="ip-tag" data-copy="\${item.ip}">\${item.ip}</span><span class="ip-details">\${details}</span></div>\`;
                 }).join('');
             } else {
                 directResultsContainer.innerHTML = '<p>No valid proxies found.</p>';
             }
         }
-
-        // Add the 'Copy All' button at the end
+        
         if (allSuccessfulIPs.length > 0) {
             const actionButtonHTML = \`<div class="action-buttons"><button class="btn btn-primary" onclick="copyToClipboard('\${[...new Set(allSuccessfulIPs)].join('\\n')}')">📋 Copy All Successful IPs</button></div>\`;
             resultDiv.querySelector('.result-card').insertAdjacentHTML('beforeend', actionButtonHTML);
         }
+    }
+
+    async function processRangeInputs_simpleList(rangeInputs) {
+        const rangeResultCard = document.getElementById('rangeResultCard');
+        const summaryDiv = document.getElementById('rangeResultSummary');
+        const listDiv = document.getElementById('successfulRangeIPsList');
+        const copyBtn = document.getElementById('copyRangeBtn');
+        const rangeIcon = document.getElementById('rangeResultIcon');
+
+        rangeResultCard.style.display = 'block';
+        rangeResultCard.className = 'result-card result-section result-warning';
+        if(rangeIcon) rangeIcon.textContent = '⟳';
+        listDiv.innerHTML = '<p style="text-align:center;">Processing...</p>';
+        summaryDiv.innerHTML = 'Total Tested: 0 | Total Successful: 0';
+        copyBtn.style.display = 'none';
+        currentSuccessfulRangeIPs = [];
+        
+        const allIPsToTest = [...new Set(rangeInputs.flatMap(parseIPRange))];
+        if (allIPsToTest.length === 0) {
+            rangeResultCard.className = 'result-card result-section result-error';
+            if(rangeIcon) rangeIcon.textContent = '✖';
+            summaryDiv.innerHTML = 'Invalid range format provided.';
+            listDiv.innerHTML = '';
+            return;
+        }
+
+        let successCount = 0;
+        let checkedCount = 0;
+
+        const batchSize = 20;
+        for (let i = 0; i < allIPsToTest.length; i += batchSize) {
+            const batch = allIPsToTest.slice(i, i + batchSize);
+            const batchPromises = batch.map(ip => 
+                fetchAPI('/api/check', new URLSearchParams({ proxyip: ip }))
+                    .then(async (data) => {
+                        checkedCount++;
+                        if (data.success) {
+                            successCount++;
+                            const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: data.proxyIP }));
+                            currentSuccessfulRangeIPs.push({ ip: data.proxyIP, countryCode: ipInfo.countryCode || 'N/A' });
+                        }
+                    })
+                    .catch(err => {
+                        checkedCount++;
+                        console.error("Error checking IP in range:", ip, err);
+                    })
+            );
+            await Promise.all(batchPromises);
+            summaryDiv.innerHTML = \`Tested: \${checkedCount}/\${allIPsToTest.length} | Successful: \${successCount}\`;
+            updateSuccessfulRangeIPsDisplay();
+        }
+        
+        rangeResultCard.classList.remove('result-warning');
+        if(successCount > 0) rangeResultCard.classList.add('result-success');
+        else rangeResultCard.classList.add('result-error');
+        if(rangeIcon) rangeIcon.textContent = successCount > 0 ? '✔' : '✖';
+        if (currentSuccessfulRangeIPs.length > 0) copyBtn.style.display = 'inline-block';
+    }
+
+    function updateSuccessfulRangeIPsDisplay() {
+        const listDiv = document.getElementById('successfulRangeIPsList');
+        if (currentSuccessfulRangeIPs.length === 0) {
+            listDiv.innerHTML = '<p style="text-align:center; color: var(--text-light);">No successful IPs found in range(s).</p>';
+            return;
+        }
+        listDiv.innerHTML = currentSuccessfulRangeIPs.map(item => 
+            \`<div class="ip-item-multi">
+                <span class="ip-tag" data-copy="\${item.ip}">\${item.ip}</span>
+                <span class="ip-details">\${item.countryCode}</span>
+            </div>\`
+        ).join('');
     }
 `;
 
@@ -554,93 +636,7 @@ function generateMainHTML(faviconURL) {
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    :root {
-      --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      --bg-primary: #ffffff;
-      --bg-secondary: #f8f9fa;
-      --text-primary: #2c3e50;
-      --text-light: #adb5bd;
-      --border-color: #dee2e6;
-      --primary-color: #3498db; 
-      --success-color: #2ecc71;
-      --error-color: #e74c3c; 
-      --result-success-bg: #d4edda;
-      --result-success-text: #155724;
-      --result-error-bg: #f8d7da;
-      --result-error-text: #721c24;
-      --result-warning-bg: #fff3cd;
-      --result-warning-text: #856404;
-      --border-radius: 12px; 
-      --border-radius-sm: 8px;
-    }
-    body.dark-mode {
-      --bg-gradient: linear-gradient(135deg, #232526 0%, #414345 100%);
-      --bg-primary: #2c3e50;
-      --bg-secondary: #34495e;
-      --text-primary: #ecf0f1;
-      --text-light: #95a5a6;
-      --border-color: #465b71;
-      --result-success-bg: #2c5a3d;
-      --result-success-text: #ffffff;
-      --result-error-bg: #5a2c2c;
-      --result-error-text: #ffffff;
-      --result-warning-bg: #5a4b1e;
-      --result-warning-text: #fff8dd;
-    }
-    html { height: 100%; }
-    body { 
-      font-family: 'Inter', sans-serif; 
-      background: var(--bg-gradient);
-      background-attachment: fixed;
-      color: var(--text-primary);
-      line-height: 1.6; margin:0; padding:0; min-height: 100%; 
-      display: flex; flex-direction: column; align-items: center;
-      transition: background 0.3s ease, color 0.3s ease;
-    }
-    .container { max-width: 800px; width: 100%; padding: 20px; box-sizing: border-box; }
-    .header { text-align: center; margin-bottom: 30px; }
-    .main-title { font-size: 2.2rem; font-weight: 700; color: #fff; text-shadow: 1px 1px 3px rgba(0,0,0,0.2); }
-    .card { background: var(--bg-primary); border-radius: var(--border-radius); padding: 25px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); margin-bottom: 25px; transition: background 0.3s ease; }
-    .form-section { display: flex; flex-direction: column; align-items: center; }
-    .form-label { display: block; font-weight: 500; margin-bottom: 8px; color: var(--text-primary); width: 100%; max-width: 450px; text-align: left;}
-    .input-wrapper { width: 100%; max-width: 450px; margin-bottom: 15px; }
-    .form-input { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.95rem; box-sizing: border-box; background-color: var(--bg-secondary); color: var(--text-primary); transition: border-color 0.3s ease, background-color 0.3s ease; }
-    textarea.form-input { min-height: 60px; resize: vertical; }
-    .btn-primary { background: linear-gradient(135deg, var(--primary-color), #2980b9); color: white; padding: 12px 25px; border: none; border-radius: var(--border-radius-sm); font-size: 1rem; font-weight: 500; cursor: pointer; width: 100%; max-width: 450px; box-sizing: border-box; display:flex; align-items:center; justify-content:center; }
-    .btn-primary:disabled { background: #bdc3c7; cursor: not-allowed; }
-    .loading-spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 1s linear infinite; display: none; margin-left: 8px; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .result-section { margin-top: 25px; }
-    .result-card { padding: 18px; border-radius: var(--border-radius-sm); margin-bottom: 12px; transition: background-color 0.3s, color 0.3s, border-color 0.3s; background-color: var(--bg-secondary); }
-    .result-card h2 { margin-top:0; border-bottom:1px solid var(--border-color); padding-bottom:10px; margin-bottom:15px; }
-    .domain-card { margin-bottom: 20px; }
-    .domain-ip-list { border: 1px solid var(--border-color); padding: 10px; border-radius: var(--border-radius-sm); max-height: 250px; overflow-y: auto; margin-top: 10px; }
-    .result-success { background-color: var(--result-success-bg); border-left: 4px solid var(--success-color); color: var(--result-success-text); }
-    .result-error { background-color: var(--result-error-bg); border-left: 4px solid var(--error-color); color: var(--result-error-text); }
-    .result-warning { background-color: var(--result-warning-bg); border-left: 4px solid #f39c12; color: var(--result-warning-text); }
-    .ip-item-multi { display: flex; justify-content: space-between; align-items: center; padding: 8px 5px; }
-    .ip-item-multi:not(:last-child) { border-bottom: 1px solid var(--border-color); }
-    .ip-tag { background-color:var(--bg-primary); padding: 3px 7px; border-radius: 5px; font-family: 'Courier New', Courier, monospace; cursor: pointer; }
-    .ip-details { font-size: 0.9em; color: var(--text-light); padding-left: 15px; }
-    .copy-btn { cursor:pointer; font-weight:600; }
-    .action-buttons { margin-top: 20px; display: flex; justify-content: center; }
-    .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 12px 20px; border-radius:var(--border-radius-sm); z-index:1001; opacity:0; transition: opacity 0.3s, transform 0.3s; }
-    .toast.show { opacity:1; }
-    .api-docs { margin-top: 30px; padding: 25px; background: var(--bg-primary); border-radius: var(--border-radius); transition: background 0.3s ease; }
-    .api-docs p { background-color: var(--bg-secondary); border: 1px solid var(--border-color); padding: 10px; border-radius: 4px; margin-bottom: 10px; word-break: break-all; transition: background 0.3s ease, border-color 0.3s ease;}
-    .api-docs p code { background: none; padding: 0;}
-    .footer { text-align: center; padding: 20px; margin-top: 30px; color: rgba(255,255,255,0.8); font-size: 0.85em; border-top: 1px solid rgba(255,255,255,0.1); }
-    .github-corner svg { fill: var(--primary-color); color: #fff; position: fixed; top: 0; border: 0; right: 0; z-index: 1000;}
-    body.dark-mode .github-corner svg { fill: #fff; color: #151513; }
-    .octo-arm{transform-origin:130px 106px}
-    .github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}
-    @keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}
-    #theme-toggle { position: fixed; bottom: 25px; right: 25px; z-index: 1002; background: var(--bg-primary); border: 1px solid var(--border-color); width: 48px; height: 48px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; box-shadow: 0 4px 8px rgba(0,0,0,0.15); transition: background-color 0.3s, border-color 0.3s; }
-    #theme-toggle svg { width: 24px; height: 24px; stroke: var(--text-primary); transition: all 0.3s ease; }
-    body:not(.dark-mode) #theme-toggle .sun-icon { display: block; fill: none;}
-    body:not(.dark-mode) #theme-toggle .moon-icon { display: none; }
-    body.dark-mode #theme-toggle .sun-icon { display: none; }
-    body.dark-mode #theme-toggle .moon-icon { display: block; fill: var(--text-primary); stroke: var(--text-primary); }
+    :root{--bg-gradient:linear-gradient(135deg,#667eea 0%,#764ba2 100%);--bg-primary:#fff;--bg-secondary:#f8f9fa;--text-primary:#2c3e50;--text-light:#adb5bd;--border-color:#dee2e6;--primary-color:#3498db;--success-color:#2ecc71;--error-color:#e74c3c;--result-success-bg:#d4edda;--result-success-text:#155724;--result-error-bg:#f8d7da;--result-error-text:#721c24;--result-warning-bg:#fff3cd;--result-warning-text:#856404;--border-radius:12px;--border-radius-sm:8px}body.dark-mode{--bg-gradient:linear-gradient(135deg,#232526 0%,#414345 100%);--bg-primary:#2c3e50;--bg-secondary:#34495e;--text-primary:#ecf0f1;--text-light:#95a5a6;--border-color:#465b71;--result-success-bg:#2c5a3d;--result-success-text:#fff;--result-error-bg:#5a2c2c;--result-error-text:#fff;--result-warning-bg:#5a4b1e;--result-warning-text:#fff8dd}html{height:100%}body{font-family:'Inter',sans-serif;background:var(--bg-gradient);background-attachment:fixed;color:var(--text-primary);line-height:1.6;margin:0;padding:0;min-height:100%;display:flex;flex-direction:column;align-items:center;transition:background .3s ease,color .3s ease}.container{max-width:800px;width:100%;padding:20px;box-sizing:border-box}.header{text-align:center;margin-bottom:30px}.main-title{font-size:2.2rem;font-weight:700;color:#fff;text-shadow:1px 1px 3px rgba(0,0,0,.2)}.card{background:var(--bg-primary);border-radius:var(--border-radius);padding:25px;box-shadow:0 8px 20px rgba(0,0,0,.1);margin-bottom:25px;transition:background .3s ease}.form-section{display:flex;flex-direction:column;align-items:center}.form-label{display:block;font-weight:500;margin-bottom:8px;color:var(--text-primary);width:100%;max-width:450px;text-align:left}.input-wrapper{width:100%;max-width:450px;margin-bottom:15px}.form-input{width:100%;padding:12px;border:1px solid var(--border-color);border-radius:var(--border-radius-sm);font-size:.95rem;box-sizing:border-box;background-color:var(--bg-secondary);color:var(--text-primary);transition:border-color .3s ease,background-color .3s ease}textarea.form-input{min-height:60px;resize:vertical}.btn-primary{background:linear-gradient(135deg,var(--primary-color),#2980b9);color:#fff;padding:12px 25px;border:none;border-radius:var(--border-radius-sm);font-size:1rem;font-weight:500;cursor:pointer;width:100%;max-width:450px;box-sizing:border-box;display:flex;align-items:center;justify-content:center}.btn-primary:disabled{background:#bdc3c7;cursor:not-allowed}.loading-spinner{width:16px;height:16px;border:2px solid hsla(0,0%,100%,.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;display:none;margin-left:8px}@keyframes spin{to{transform:rotate(360deg)}}.result-section{margin-top:25px}.result-card{padding:18px;border-radius:var(--border-radius-sm);margin-bottom:12px;transition:background-color .3s,color .3s,border-color .3s;background-color:var(--bg-secondary)}.result-card h2{margin-top:0;border-bottom:1px solid var(--border-color);padding-bottom:10px;margin-bottom:15px}.domain-card{margin-bottom:20px}.domain-ip-list,.ip-grid{border:1px solid var(--border-color);padding:10px;border-radius:var(--border-radius-sm);max-height:250px;overflow-y:auto;margin-top:10px}.result-success{background-color:var(--result-success-bg);border-left:4px solid var(--success-color);color:var(--result-success-text)}.result-error{background-color:var(--result-error-bg);border-left:4px solid var(--error-color);color:var(--result-error-text)}.result-warning{background-color:var(--result-warning-bg);border-left:4px solid #f39c12;color:var(--result-warning-text)}.result-card h3 .status-icon-prefix{margin-right:8px}.ip-item-multi{display:flex;justify-content:space-between;align-items:center;padding:8px 5px}.ip-item-multi:not(:last-child){border-bottom:1px solid var(--border-color)}.ip-tag{background-color:var(--bg-primary);padding:3px 7px;border-radius:5px;font-family:'Courier New',Courier,monospace;cursor:pointer}.ip-details{font-size:.9em;color:var(--text-light);padding-left:15px}.copy-btn{cursor:pointer;font-weight:600}.action-buttons{margin-top:20px;display:flex;justify-content:center}.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:12px 20px;border-radius:var(--border-radius-sm);z-index:1001;opacity:0;transition:opacity .3s,transform .3s}.toast.show{opacity:1}.api-docs{margin-top:30px;padding:25px;background:var(--bg-primary);border-radius:var(--border-radius);transition:background .3s ease}.api-docs p{background-color:var(--bg-secondary);border:1px solid var(--border-color);padding:10px;border-radius:4px;margin-bottom:10px;word-break:break-all;transition:background .3s ease,border-color .3s ease}.api-docs p code{background:none;padding:0}.footer{text-align:center;padding:20px;margin-top:30px;color:hsla(0,0%,100%,.8);font-size:.85em;border-top:1px solid hsla(0,0%,100%,.1)}.github-corner svg{fill:var(--primary-color);color:#fff;position:fixed;top:0;border:0;right:0;z-index:1000}body.dark-mode .github-corner svg{fill:#fff;color:#151513}.octo-arm{transform-origin:130px 106px}.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}#theme-toggle{position:fixed;bottom:25px;right:25px;z-index:1002;background:var(--bg-primary);border:1px solid var(--border-color);width:48px;height:48px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;box-shadow:0 4px 8px rgba(0,0,0,.15);transition:background-color .3s,border-color .3s}#theme-toggle svg{width:24px;height:24px;stroke:var(--text-primary);transition:all .3s ease}body:not(.dark-mode) #theme-toggle .sun-icon{display:block;fill:none}body:not(.dark-mode) #theme-toggle .moon-icon{display:none}body.dark-mode #theme-toggle .sun-icon{display:none}body.dark-mode #theme-toggle .moon-icon{display:block;fill:var(--text-primary);stroke:var(--text-primary)}
   </style>
 </head>
 <body>
@@ -667,6 +663,14 @@ function generateMainHTML(faviconURL) {
         </button>
       </div>
       <div id="result" class="result-section"></div>
+      
+      <div id="rangeResultCard" class="result-card result-section" style="display:none;">
+         <h3><span id="rangeResultIcon"></span>Successful IPs in Range:</h3>
+         <div id="rangeResultSummary" style="margin-bottom: 10px;"></div>
+         <div id="successfulRangeIPsList" class="domain-ip-list"></div>
+         <button id="copyRangeBtn" class="btn-secondary" style="display:none; margin-top: 15px;">Copy Successful IPs</button>
+      </div>
+
     </div>
     <div class="api-docs">
        <h3 style="margin-bottom:15px; text-align:center;">PATH URL Documentation</h3>
@@ -676,7 +680,7 @@ function generateMainHTML(faviconURL) {
        <hr style="border:0; border-top: 1px solid var(--border-color); margin: 20px 0;"/>
     </div>
     <footer class="footer">
-      <p>© ${new Date().getFullYear()} Proxy IP Checker - By <strong>mehdi-hexing</strong></p>
+      <p>© ${year} Proxy IP Checker - By <strong>mehdi-hexing</strong></p>
     </footer>
   </div>
   <div id="toast" class="toast"></div>
@@ -694,6 +698,8 @@ export default {
     async fetch(request, env, ctx) {
         const url = new URL(request.url);
         const path = url.pathname;
+        const UA = request.headers.get('User-Agent') || 'null';
+        const hostname = url.hostname;
         
         const processAndRender = async (allIPs, options) => {
             try {
@@ -701,11 +707,17 @@ export default {
                     return new Response(generateResultsPageHTML({ ...options, results: [], successfulIPsText: '' }), { headers: { 'Content-Type': 'text/html;charset=UTF-8' } });
                 }
                 const uniqueIPs = [...new Set(allIPs)];
-                const checkPromises = uniqueIPs.map(ip => checkProxyIP(ip));
-                const checkResults = await Promise.all(checkPromises);
-                
-                const successfulChecks = checkResults.filter(result => result.success);
+                const allResults = [];
+                const batchSize = 20;
 
+                for (let i = 0; i < uniqueIPs.length; i += batchSize) {
+                    const batch = uniqueIPs.slice(i, i + batchSize);
+                    const checkPromises = batch.map(ip => checkProxyIP(ip));
+                    const batchResults = await Promise.all(checkPromises);
+                    allResults.push(...batchResults);
+                }
+                
+                const successfulChecks = allResults.filter(result => result.success);
                 const successfulIPsText = successfulChecks.map(c => c.proxyIP).join('\n');
                 
                 const successfulResultsWithInfo = await Promise.all(successfulChecks.map(async (check) => {
@@ -772,10 +784,8 @@ export default {
         }
 
         if (path.toLowerCase().startsWith('/api/')) {
-            const userAgent = request.headers.get('User-Agent') || 'null';
-            const hostname = url.hostname;
             const timestampForToken = Math.ceil(new Date().getTime() / (1000 * 60 * 31));
-            const temporaryTOKEN = await doubleHash(hostname + timestampForToken + userAgent);
+            const temporaryTOKEN = await doubleHash(hostname + timestampForToken + UA);
             const permanentTOKEN = env.TOKEN || temporaryTOKEN;
             
             const isTokenValid = () => {
@@ -825,7 +835,7 @@ export default {
             return new Response(JSON.stringify({success: false, error: 'API route not found'}), { status: 404, headers: { "Content-Type": "application/json" } });
         }
         
-        const faviconURL = env.ICO || 'https://cf-assets.www.cloudflare.com/dzlvafdwdttg/19kSkLSfWtDcspvQI5pit4/c5630cf25d589a0de91978ca29486259/performance-acceleration-bolt.svg';
+        const faviconURL = env.ICO || 'https://github.com/user-attachments/assets/31a6ced0-62b8-429f-a98e-082ea5ac1990';
 
         if (path.toLowerCase() === '/favicon.ico') {
             return Response.redirect(faviconURL, 302);
