@@ -778,7 +778,7 @@ function generateMainHTML(faviconURL) {
       </div>
     </div>
     <div class="country-drawer">
-        <button id="drawer-toggle" class="drawer-toggle">Select From Country List</button>
+        <button id="drawer-toggle" class="drawer-toggle">Do You Need ProxyIP? Click Here</button>
         <div id="drawer-content" class="drawer-content">
             <div class="country-grid">
                 ${countryButtonsHTML}
@@ -786,7 +786,7 @@ function generateMainHTML(faviconURL) {
         </div>
     </div>
     <div class="api-docs">
-       <h3 style="margin-bottom:15px; text-align:center;">API Documentation</h3>
+       <h3 style="margin-bottom:15px; text-align:center;">URL PATHDocumentation</h3>
        <p><code>/proxyip/IP1,IP2,IP3,...</code></p>
        <p><code>/iprange/127.0.0.0/24,... or 127.0.0.0-255,...</code></p>
        <p><code>/file/https://your.file/ip1.txt or ip1.csv</code></p>
