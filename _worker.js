@@ -146,7 +146,7 @@ function generateClientSideCheckPageHTML({ title, subtitleLabel, subtitleContent
         if (pageType === 'file') {
              subtitleHTML = `<div class="ranges-list"><strong>${subtitleLabel}</strong> <a href="${subtitleContent}" class="range-tag" target="_blank" rel="noopener noreferrer">${subtitleContent}</a></div>`;
         } else if (pageType === 'iprange') {
-             const ranges = subtitleContent.split(',').map(r => `<span class="range-tag" onclick="copyToClipboard('${r.trim()}', this)">${r.trim()}</span>`).join('<br>');
+             const ranges = subtitleContent.split(',').map(r => `<span class="range-tag" data-copy="${r.trim()}">${r.trim()}</span>`).join('<br>');
              subtitleHTML = `<div class="ranges-list"><strong>${subtitleLabel}</strong><br>${ranges}</div>`;
         } else {
              subtitleHTML = `<div class="ranges-list"><strong>${subtitleLabel}</strong> <span class="range-tag">${subtitleContent}</span></div>`;
@@ -756,11 +756,11 @@ function generateMainHTML(faviconURL) {
       <div class="form-section">
         <label for="proxyip" class="form-label">Enter IPs or Domains (one per line):</label>
         <div class="input-wrapper">
-          <textarea id="proxyip" class="form-input" rows="4" placeholder="127.0.0.1 or nima.nscl.ir" autocomplete="off"></textarea>
+        <textarea id="proxyip" class="form-input" rows="4" placeholder="127.0.0.1 or nima.nscl.ir" autocomplete="off"></textarea>
         </div>
         <label for="proxyipRangeRows" class="form-label">Enter IP Range(s) (one per line):</label>
         <div class="input-wrapper">
-          <textarea id="proxyipRangeRows" class="form-input" rows="3" placeholder="127.0.0.0/24 or 127.0.0.0-255" autocomplete="off"></textarea>
+        <textarea id="proxyipRangeRows" class="form-input" rows="3" placeholder="127.0.0.0/24 or 127.0.0.0-255" autocomplete="off"></textarea>
         </div>
         <button id="checkBtn" class="btn-primary">
             <span style="display: flex; align-items: center; justify-content: center;">
@@ -778,7 +778,7 @@ function generateMainHTML(faviconURL) {
       </div>
     </div>
     <div class="country-drawer">
-        <button id="drawer-toggle" class="drawer-toggle">Do You Need Proxy IP? Click Here</button>
+        <button id="drawer-toggle" class="drawer-toggle">Select From Country List</button>
         <div id="drawer-content" class="drawer-content">
             <div class="country-grid">
                 ${countryButtonsHTML}
@@ -786,10 +786,11 @@ function generateMainHTML(faviconURL) {
         </div>
     </div>
     <div class="api-docs">
-       <h3 style="margin-bottom:15px; text-align:center;">URL PATH Documentation</h3>
+       <h3 style="margin-bottom:15px; text-align:center;">API Documentation</h3>
        <p><code>/proxyip/IP1,IP2,IP3,...</code></p>
        <p><code>/iprange/127.0.0.0/24,... or 127.0.0.0-255,...</code></p>
        <p><code>/file/https://your.file/ip1.txt or ip1.csv</code></p>
+       <hr style="border:0; border-top: 1px solid var(--border-color); margin: 20px 0;"/>
     </div>
     <footer class="footer">
       <p>© ${year} Proxy IP Checker - By <strong>mehdi-hexing</strong></p>
@@ -916,6 +917,41 @@ export default {
                 if (ip.includes('[')) ip = ip.replace(/\[|\]/g, '');
                 const data = await getIpInfo(ip);
                 return new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } });
+            }
+
+            // --- NEW API ENDPOINT FOR THE BOT ---
+            if (path.toLowerCase() === '/api/check_file') {
+                const targetUrl = url.searchParams.get('url');
+                if (!targetUrl || !targetUrl.startsWith('http')) {
+                    return new Response(JSON.stringify({ success: false, error: 'Invalid or missing URL parameter' }), { status: 400, headers: { "Content-Type": "application/json" } });
+                }
+                try {
+                    const response = await fetch(targetUrl, { headers: {'User-Agent': 'ProxyChecker/1.0'} });
+                    if (!response.ok) throw new Error(`Fetch failed: ${response.statusText}`);
+                    
+                    const text = await response.text();
+                    const foundIPs = [...new Set([...(text.match(forgivingIPv4Regex) || []), ...(text.match(ipv6Regex) || [])])];
+                    
+                    const ipsToCheck = foundIPs.filter(ip => {
+                        const parts = ip.split(':');
+                        return parts.length === 1 || !isNaN(parseInt(parts[parts.length - 1]));
+                    });
+
+                    const allResults = [];
+                    const batchSize = 20;
+                    for (let i = 0; i < ipsToCheck.length; i += batchSize) {
+                        const batch = ipsToCheck.slice(i, i + batchSize);
+                        const checkPromises = batch.map(ip => checkProxyIP(ip));
+                        const batchResults = await Promise.all(checkPromises);
+                        allResults.push(...batchResults);
+                    }
+                    
+                    const successfulIPs = allResults.filter(r => r.success).map(r => r.proxyIP);
+                    return new Response(JSON.stringify({ success: true, successful_ips: successfulIPs }), { headers: { "Content-Type": "application/json" } });
+
+                } catch (e) {
+                    return new Response(JSON.stringify({ success: false, error: e.message }), { status: 500, headers: { "Content-Type": "application/json" } });
+                }
             }
             
             return new Response(JSON.stringify({success: false, error: 'API route not found'}), { status: 404, headers: { "Content-Type": "application/json" } });
