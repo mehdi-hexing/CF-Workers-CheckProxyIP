@@ -211,24 +211,14 @@ function generateClientSideCheckPageHTML({ title, subtitleLabel, subtitleContent
         }
 
 async function fetchAPI(path, params) {
-        if (!TEMP_TOKEN) {
-             await new Promise(resolve => setTimeout(resolve, 500));
-             if (!TEMP_TOKEN) await fetch('/api/get-token').then(res => res.json()).then(data => { TEMP_TOKEN = data.token; });
-             if (!TEMP_TOKEN) throw new Error("Could not retrieve session token.");
+            params.append('token', TEMP_TOKEN);
+            const response = await fetch(path + '?' + params.toString());
+            const data = await response.json();
+            if (!response.ok && typeof data.success === 'undefined') {
+                throw new Error('API Error: ' + (data.message || response.statusText));
+            }
+            return data;
         }
-        params.append('token', TEMP_TOKEN);
-
-        // The corrected line to build the full URL with parameters
-        const fullPathWithParams = '/api' + path + '?' + params.toString();
-        
-        const response = await fetch(fullPathWithParams);
-        const data = await response.json();
-        
-        if (!response.ok) {
-            throw new Error(data.error || data.message || 'API request failed');
-        }
-        return data;
-    }
 
         function renderResult(item) {
             const container = document.getElementById('results-container');
@@ -427,23 +417,7 @@ async function fetchAPI(path, params) {
              if (!TEMP_TOKEN) throw new Error("Could not retrieve session token.");
         }
         params.append('token', TEMP_TOKEN);
-
-        // Correct URL construction with parameters
-        const fullPathWithParams = '/api' + path + '?' + params.toString();
-        
-        const response = await fetch(fullPathWithParams);
-        const data = await response.json();
-        
-        // Checking the HTTP Answer Status
-        if (!response.ok) {
-            throw new Error(data.error || data.message || 'API request failed');
-        }
-        return data;
-    }
-        params.append('token', TEMP_TOKEN);
-        const response = await fetch('/api' + path, {
-            method: 'GET'
-        });
+        const response = await fetch(path + '?' + params.toString());
         const data = await response.json();
         if (!response.ok && typeof data.success === 'undefined') {
             throw new Error('API Error: ' + (data.message || response.statusText));
@@ -516,10 +490,10 @@ async function fetchAPI(path, params) {
         const resultDiv = document.getElementById('result');
         resultDiv.innerHTML = '<div class="result-card"><p style="text-align:center;">Checking...</p></div>';
         try {
-            const data = await fetchAPI('/check', new URLSearchParams({ proxyip }));
+            const data = await fetchAPI('/api/check', new URLSearchParams({ proxyip }));
             const resultCard = resultDiv.firstChild;
             if (data.success) {
-                const ipInfo = await fetchAPI('/ip-info', new URLSearchParams({ ip: data.proxyIP }));
+                const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: data.proxyIP }));
                 resultCard.className = 'result-card result-success';
                 resultCard.innerHTML = \`
                     <h3>✅ Valid Proxy IP</h3>
@@ -550,7 +524,7 @@ async function fetchAPI(path, params) {
 
         try {
             resultCard.className = 'result-card';
-            const resolveData = await fetchAPI('/resolve', new URLSearchParams({ domain }));
+            const resolveData = await fetchAPI('/api/resolve', new URLSearchParams({ domain }));
             if (!resolveData.success || !resolveData.ips || resolveData.ips.length === 0) {
                 throw new Error(resolveData.error || 'Could not resolve domain.');
             }
@@ -569,11 +543,11 @@ async function fetchAPI(path, params) {
                 ipListDiv.appendChild(ipItem);
                 
                 try {
-                    const checkData = await fetchAPI('/check', new URLSearchParams({ proxyip: ip }));
+                    const checkData = await fetchAPI('/api/check', new URLSearchParams({ proxyip: ip }));
                     const statusSpan = document.getElementById(\`status-\${index}\`);
                     if (checkData.success) {
                         successCount++;
-                        const ipInfo = await fetchAPI('/ip-info', new URLSearchParams({ ip: ip }));
+                        const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: ip }));
                         statusSpan.innerHTML = \`✅ (\${ipInfo.country || 'N/A'} - \${ipInfo.as || 'N/A'})\`;
                     } else {
                         statusSpan.textContent = '❌';
@@ -599,7 +573,7 @@ async function fetchAPI(path, params) {
         resultDiv.innerHTML = '<div class="result-card"><p style="text-align:center; padding: 20px;">Processing...</p></div>';
         
         const mainCard = resultDiv.querySelector('.result-card');
-        
+        mainCard.innerHTML = '';
         const domains = mainInputs.filter(isDomain);
         const directIPs = mainInputs.filter(isIPAddress);
         const numberEmojis = ['0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣'];
@@ -618,7 +592,7 @@ async function fetchAPI(path, params) {
         
         const resolvePromises = domains.map(async (domain, index) => {
             try {
-                const resolveData = await fetchAPI('/resolve', new URLSearchParams({ domain }));
+                const resolveData = await fetchAPI('/api/resolve', new URLSearchParams({ domain }));
                 if (resolveData.success) {
                     resolveData.ips.forEach(ip => allIPsToTest.push({ ip, domainIndex: index }));
                 }
@@ -633,9 +607,9 @@ async function fetchAPI(path, params) {
         
         const checkPromises = allIPsToTest.map(async (ipObject) => {
             try {
-                const checkData = await fetchAPI('/check', new URLSearchParams({ proxyip: ipObject.ip }));
+                const checkData = await fetchAPI('/api/check', new URLSearchParams({ proxyip: ipObject.ip }));
                 if (checkData.success) {
-                    const ipInfo = await fetchAPI('/ip-info', new URLSearchParams({ ip: checkData.proxyIP }));
+                    const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: checkData.proxyIP }));
                     return { ip: checkData.proxyIP, info: ipInfo, domainIndex: ipObject.domainIndex };
                 }
             } catch (e) {}
@@ -645,10 +619,14 @@ async function fetchAPI(path, params) {
         const successfulIPs = (await Promise.all(checkPromises)).filter(Boolean);
 
         if (successfulIPs.length > 0) {
-            ipListContainer.innerHTML = '<h2>Successful IPs</h2>' + successfulIPs.map(item => {
+            ipListContainer.innerHTML = successfulIPs.map(item => {
                 const details = \`(\${item.info.country || 'N/A'} - \${item.info.as || 'N/A'})\`;
                 const prefix = item.domainIndex > -1 ? \`\${formatNumber(item.domainIndex + 1)} \` : '';
-                return \`<div class="ip-item-multi"><div>\${prefix}<span class="ip-tag" data-copy="\${item.ip}">\${item.ip}</span></div><span class="ip-details">\${details}</span></div>\`;
+                return \`
+                    <div class="ip-item-multi">
+                        <div>\${prefix}<span class="ip-tag" data-copy="\${item.ip}">\${item.ip}</span></div>
+                        <span class="ip-details">\${details}</span>
+                    </div>\`;
             }).join('');
         } else {
             ipListContainer.innerHTML = '<p>No valid proxies found.</p>';
@@ -692,7 +670,7 @@ async function fetchAPI(path, params) {
                         checkedCount++;
                         if (data.success) {
                             successCount++;
-                            const ipInfo = await fetchAPI('/ip-info', new URLSearchParams({ ip: data.proxyIP }));
+                            const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: data.proxyIP }));
                             currentSuccessfulRangeIPs.push({ ip: data.proxyIP, countryCode: ipInfo.countryCode || 'N/A' });
                         }
                     })
