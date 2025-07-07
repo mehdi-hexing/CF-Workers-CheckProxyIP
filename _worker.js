@@ -147,7 +147,7 @@ function generateClientSideCheckPageHTML({ title, subtitleLabel, subtitleContent
         if (pageType === 'file') {
              subtitleHTML = `<div class="ranges-list"><strong>${subtitleLabel}</strong> <a href="${subtitleContent}" class="range-tag" target="_blank" rel="noopener noreferrer">${subtitleContent}</a></div>`;
         } else if (pageType === 'iprange') {
-             const ranges = subtitleContent.split(',').map(r => `<span class="range-tag" onclick="copyToClipboard('${r.trim()}', this)">${r.trim()}</span>`).join('<br>');
+             const ranges = subtitleContent.split(',').map(r => `<span class="range-tag" data-copy="${r.trim()}">${r.trim()}</span>`).join('<br>');
              subtitleHTML = `<div class="ranges-list"><strong>${subtitleLabel}</strong><br>${ranges}</div>`;
         }
     }
@@ -165,9 +165,11 @@ function generateClientSideCheckPageHTML({ title, subtitleLabel, subtitleContent
         body:not(.dark-mode) .theme-toggle .moon-icon { display: none; }
         body.dark-mode .theme-toggle .sun-icon { display: none; }
         body.dark-mode .theme-toggle .moon-icon { display: block; fill: var(--text-color); stroke: var(--text-color); }
+        .github-corner svg{fill:var(--primary-color);color:#fff;position:fixed;top:0;border:0;right:0;z-index:9999}body.dark-mode .github-corner svg{fill:#fff;color:#151513}.octo-arm{transform-origin:130px 106px}.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}
     </style>
 </head>
 <body>
+    <a href="https://github.com/mehdi-hexing/CF-Workers-CheckProxyIP" target="_blank" class="github-corner" aria-label="View source on Github"><svg width="80" height="80" viewBox="0 0 250 250" style="position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
     <div class="container">
         <header class="header">
             <div class="title-section">
@@ -415,7 +417,9 @@ const CLIENT_SCRIPT = `
              if (!TEMP_TOKEN) throw new Error("Could not retrieve session token.");
         }
         params.append('token', TEMP_TOKEN);
-        const response = await fetch(path + '?' + params.toString());
+        const response = await fetch('/api' + path, {
+            method: 'GET'
+        });
         const data = await response.json();
         if (!response.ok && typeof data.success === 'undefined') {
             throw new Error('API Error: ' + (data.message || response.statusText));
@@ -423,7 +427,7 @@ const CLIENT_SCRIPT = `
         return data;
     }
 
-    const isIPAddress = (input) => /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(input.split(':')[0].replace(/[\\[\\]]/g, ''));
+    const isIPAddress = (input) => /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(input.split(':')[0].replace(/[\\[\\]]/g, ''));
     const isDomain = (input) => /^(?!-)[a-zA-Z0-9-]+([\\-\\.]{1}[a-zA-Z0-9]+)*\\.[a-zA-Z]{2,}$/.test(input.split(':')[0]);
     const isIPRange = (input) => /^(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})\\/24$/.test(input) || /^(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.)(\\d{1,3})-(\\d{1,3})$/.test(input);
 
@@ -488,10 +492,10 @@ const CLIENT_SCRIPT = `
         const resultDiv = document.getElementById('result');
         resultDiv.innerHTML = '<div class="result-card"><p style="text-align:center;">Checking...</p></div>';
         try {
-            const data = await fetchAPI('/api/check', new URLSearchParams({ proxyip }));
+            const data = await fetchAPI('/check', new URLSearchParams({ proxyip }));
             const resultCard = resultDiv.firstChild;
             if (data.success) {
-                const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: data.proxyIP }));
+                const ipInfo = await fetchAPI('/ip-info', new URLSearchParams({ ip: data.proxyIP }));
                 resultCard.className = 'result-card result-success';
                 resultCard.innerHTML = \`
                     <h3>✅ Valid Proxy IP</h3>
@@ -521,8 +525,8 @@ const CLIENT_SCRIPT = `
         const resultCard = resultDiv.firstChild;
 
         try {
-            resultCard.className = 'result-card'; // Neutral initial state
-            const resolveData = await fetchAPI('/api/resolve', new URLSearchParams({ domain }));
+            resultCard.className = 'result-card';
+            const resolveData = await fetchAPI('/resolve', new URLSearchParams({ domain }));
             if (!resolveData.success || !resolveData.ips || resolveData.ips.length === 0) {
                 throw new Error(resolveData.error || 'Could not resolve domain.');
             }
@@ -541,11 +545,11 @@ const CLIENT_SCRIPT = `
                 ipListDiv.appendChild(ipItem);
                 
                 try {
-                    const checkData = await fetchAPI('/api/check', new URLSearchParams({ proxyip: ip }));
+                    const checkData = await fetchAPI('/check', new URLSearchParams({ proxyip: ip }));
                     const statusSpan = document.getElementById(\`status-\${index}\`);
                     if (checkData.success) {
                         successCount++;
-                        const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: ip }));
+                        const ipInfo = await fetchAPI('/ip-info', new URLSearchParams({ ip: ip }));
                         statusSpan.innerHTML = \`✅ (\${ipInfo.country || 'N/A'} - \${ipInfo.as || 'N/A'})\`;
                     } else {
                         statusSpan.textContent = '❌';
@@ -571,45 +575,43 @@ const CLIENT_SCRIPT = `
         resultDiv.innerHTML = '<div class="result-card"><p style="text-align:center; padding: 20px;">Processing...</p></div>';
         
         const mainCard = resultDiv.querySelector('.result-card');
-        mainCard.innerHTML = ''; 
-
+        
         const domains = mainInputs.filter(isDomain);
         const directIPs = mainInputs.filter(isIPAddress);
         const numberEmojis = ['0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣'];
         const formatNumber = (n) => (n).toString().split('').map(digit => numberEmojis[parseInt(digit)]).join('');
-
+        
         let allIPsToTest = directIPs.map(ip => ({ ip, domainIndex: -1 })); 
         
+        let domainListHTML = '';
         if (domains.length > 0) {
-            let domainListHTML = '<h2>Checking Domains:</h2>';
+            domainListHTML = '<h2>Domains to Check</h2>';
             domains.forEach((d, i) => {
-                domainListHTML += \`<p style="margin: 0; margin-bottom: 5px;">\${formatNumber(i+1)} <span class="copy-btn" data-copy="\${d}">\${d}</span></p>\`;
+                domainListHTML += \`<p style="margin: 0; margin-bottom: 5px;">\${formatNumber(i + 1)} <span class="copy-btn" data-copy="\${d}">\${d}</span></p>\`;
             });
-            mainCard.innerHTML = domainListHTML + '<hr style="margin: 15px 0;">';
         }
+        mainCard.innerHTML = domainListHTML + (domains.length > 0 ? '<hr style="margin: 15px 0;">' : '') + '<div id="multi-ip-list" class="domain-ip-list"><p style="text-align:center;">Resolving and preparing IP list...</p></div>';
         
         const resolvePromises = domains.map(async (domain, index) => {
             try {
-                const resolveData = await fetchAPI('/api/resolve', new URLSearchParams({ domain }));
+                const resolveData = await fetchAPI('/resolve', new URLSearchParams({ domain }));
                 if (resolveData.success) {
                     resolveData.ips.forEach(ip => allIPsToTest.push({ ip, domainIndex: index }));
                 }
             } catch (e) { console.error("Failed to resolve", domain, e); }
         });
-        await Promise.all(resolvePromises);
+        await Promise.allSettled(resolvePromises);
         
         allIPsToTest = [...new Map(allIPsToTest.map(item => [item.ip, item])).values()];
         
-        const ipListContainer = document.createElement('div');
-        ipListContainer.className = 'domain-ip-list';
+        const ipListContainer = document.getElementById('multi-ip-list');
         ipListContainer.innerHTML = '<p style="text-align:center;">Checking all IPs...</p>';
-        mainCard.appendChild(ipListContainer);
         
         const checkPromises = allIPsToTest.map(async (ipObject) => {
             try {
-                const checkData = await fetchAPI('/api/check', new URLSearchParams({ proxyip: ipObject.ip }));
+                const checkData = await fetchAPI('/check', new URLSearchParams({ proxyip: ipObject.ip }));
                 if (checkData.success) {
-                    const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: checkData.proxyIP }));
+                    const ipInfo = await fetchAPI('/ip-info', new URLSearchParams({ ip: checkData.proxyIP }));
                     return { ip: checkData.proxyIP, info: ipInfo, domainIndex: ipObject.domainIndex };
                 }
             } catch (e) {}
@@ -619,14 +621,10 @@ const CLIENT_SCRIPT = `
         const successfulIPs = (await Promise.all(checkPromises)).filter(Boolean);
 
         if (successfulIPs.length > 0) {
-            ipListContainer.innerHTML = successfulIPs.map(item => {
+            ipListContainer.innerHTML = '<h2>Successful IPs</h2>' + successfulIPs.map(item => {
                 const details = \`(\${item.info.country || 'N/A'} - \${item.info.as || 'N/A'})\`;
                 const prefix = item.domainIndex > -1 ? \`\${formatNumber(item.domainIndex + 1)} \` : '';
-                return \`
-                    <div class="ip-item-multi">
-                        <div>\${prefix}<span class="ip-tag" data-copy="\${item.ip}">\${item.ip}</span></div>
-                        <span class="ip-details">\${details}</span>
-                    </div>\`;
+                return \`<div class="ip-item-multi"><div>\${prefix}<span class="ip-tag" data-copy="\${item.ip}">\${item.ip}</span></div><span class="ip-details">\${details}</span></div>\`;
             }).join('');
         } else {
             ipListContainer.innerHTML = '<p>No valid proxies found.</p>';
@@ -665,12 +663,12 @@ const CLIENT_SCRIPT = `
         for (let i = 0; i < allIPsToTest.length; i += batchSize) {
             const batch = allIPsToTest.slice(i, i + batchSize);
             const batchPromises = batch.map(ip => 
-                fetchAPI('/api/check', new URLSearchParams({ proxyip: ip }))
+                fetchAPI('/check', new URLSearchParams({ proxyip: ip }))
                     .then(async (data) => {
                         checkedCount++;
                         if (data.success) {
                             successCount++;
-                            const ipInfo = await fetchAPI('/api/ip-info', new URLSearchParams({ ip: data.proxyIP }));
+                            const ipInfo = await fetchAPI('/ip-info', new URLSearchParams({ ip: data.proxyIP }));
                             currentSuccessfulRangeIPs.push({ ip: data.proxyIP, countryCode: ipInfo.countryCode || 'N/A' });
                         }
                     })
@@ -719,7 +717,7 @@ function generateMainHTML(faviconURL) {
   
   for (const code in countries) {
       if (code === 'ALL') continue;
-      const fileUrl = `${countryFileBaseURL}${code}.txt`;
+      const fileUrl = `${countryFileBaseURL}${code.toUpperCase()}.txt`;
       countryButtonsHTML += `
         <div class="country-item">
             <a href="/file/${encodeURIComponent(fileUrl)}" class="country-button" style="background-image: url('https://flagcdn.com/${code.toLowerCase()}.svg');"></a>
@@ -739,11 +737,12 @@ function generateMainHTML(faviconURL) {
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    :root{--bg-gradient:linear-gradient(135deg,#667eea 0%,#764ba2 100%);--bg-primary:#fff;--bg-secondary:#f8f9fa;--text-primary:#2c3e50;--text-light:#adb5bd;--border-color:#dee2e6;--primary-color:#3498db;--success-color:#2ecc71;--error-color:#e74c3c;--result-success-bg:#d4edda;--result-success-text:#155724;--result-error-bg:#f8d7da;--result-error-text:#721c24;--result-warning-bg:#fff3cd;--result-warning-text:#856404;--border-radius:12px;--border-radius-sm:8px}body.dark-mode{--bg-gradient:linear-gradient(135deg,#232526 0%,#414345 100%);--bg-primary:#2c3e50;--bg-secondary:#34495e;--text-primary:#ecf0f1;--text-light:#95a5a6;--border-color:#465b71;--result-success-bg:#2c5a3d;--result-success-text:#fff;--result-error-bg:#5a2c2c;--result-error-text:#fff;--result-warning-bg:#5a4b1e;--result-warning-text:#fff8dd}html{height:100%}body{font-family:'Inter',sans-serif;background:var(--bg-gradient);background-attachment:fixed;color:var(--text-primary);line-height:1.6;margin:0;padding:0;min-height:100%;display:flex;flex-direction:column;align-items:center;transition:background .3s ease,color .3s ease}.container{max-width:800px;width:100%;padding:20px;box-sizing:border-box}.header{text-align:center;margin-bottom:30px}.main-title{font-size:2.2rem;font-weight:700;color:#fff;text-shadow:1px 1px 3px rgba(0,0,0,.2)}.card{background:var(--bg-primary);border-radius:var(--border-radius);padding:25px;box-shadow:0 8px 20px rgba(0,0,0,.1);margin-bottom:25px;transition:background .3s ease}.form-section{display:flex;flex-direction:column;align-items:center}.form-label{display:block;font-weight:500;margin-bottom:8px;color:var(--text-primary);width:100%;max-width:450px;text-align:left}.input-wrapper{width:100%;max-width:450px;margin-bottom:15px}.form-input{width:100%;padding:12px;border:1px solid var(--border-color);border-radius:var(--border-radius-sm);font-size:.95rem;box-sizing:border-box;background-color:var(--bg-secondary);color:var(--text-primary);transition:border-color .3s ease,background-color .3s ease}textarea.form-input{min-height:60px;resize:vertical}.btn-primary{background:linear-gradient(135deg,var(--primary-color),#2980b9);color:#fff;padding:12px 25px;border:none;border-radius:var(--border-radius-sm);font-size:1rem;font-weight:500;cursor:pointer;width:100%;max-width:450px;box-sizing:border-box;display:flex;align-items:center;justify-content:center}.btn-primary:disabled{background:#bdc3c7;cursor:not-allowed}.loading-spinner{width:16px;height:16px;border:2px solid hsla(0,0%,100%,.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;display:none;margin-left:8px}@keyframes spin{to{transform:rotate(360deg)}}.result-section{margin-top:25px}.result-card{padding:18px;border-radius:var(--border-radius-sm);margin-bottom:12px;transition:background-color .3s,color .3s,border-color .3s;background-color:var(--bg-secondary)}.result-card h2{margin-top:0;border-bottom:1px solid var(--border-color);padding-bottom:10px;margin-bottom:15px}.domain-card{margin-bottom:20px}.domain-ip-list{border:1px solid var(--border-color);padding:10px;border-radius:var(--border-radius-sm);max-height:250px;overflow-y:auto;margin-top:10px}.result-success{background-color:var(--result-success-bg);border-left:4px solid var(--success-color);color:var(--result-success-text)}.result-error{background-color:var(--result-error-bg);border-left:4px solid var(--error-color);color:var(--result-error-text)}.result-warning{background-color:var(--result-warning-bg);border-left:4px solid #f39c12;color:var(--result-warning-text)}.result-card h3{display:flex;align-items:center;margin-top:0}.result-card h3 .status-icon-prefix{margin-right:8px}.ip-item-multi{display:flex;justify-content:space-between;align-items:center;padding:8px 5px}.ip-item-multi:not(:last-child){border-bottom:1px solid var(--border-color)}.ip-tag{background-color:var(--bg-primary);padding:3px 7px;border-radius:5px;font-family:'Courier New',Courier,monospace;cursor:pointer}.ip-details{font-size:.9em;color:var(--text-light);padding-left:15px}.copy-btn{cursor:pointer;font-weight:600}.action-buttons{margin-top:20px;display:flex;justify-content:center}.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:12px 20px;border-radius:var(--border-radius-sm);z-index:1001;opacity:0;transition:opacity .3s,transform .3s}.toast.show{opacity:1}.api-docs{margin-top:30px;padding:25px;background:var(--bg-primary);border-radius:var(--border-radius);transition:background .3s ease}.api-docs p{background-color:var(--bg-secondary);border:1px solid var(--border-color);padding:10px;border-radius:4px;margin-bottom:10px;word-break:break-all;transition:background .3s ease,border-color .3s ease}.api-docs p code{background:none;padding:0}.footer{text-align:center;padding:20px;margin-top:30px;color:hsla(0,0%,100%,.8);font-size:.85em;border-top:1px solid hsla(0,0%,100%,.1)}.github-corner svg{fill:var(--primary-color);color:#fff;position:fixed;top:0;border:0;right:0;z-index:1000}body.dark-mode .github-corner svg{fill:#fff;color:#151513}.octo-arm{transform-origin:130px 106px}.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}#theme-toggle{position:fixed;bottom:25px;right:25px;z-index:1002;background:var(--bg-primary);border:1px solid var(--border-color);width:48px;height:48px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;box-shadow:0 4px 8px rgba(0,0,0,.15);transition:background-color .3s,border-color .3s}#theme-toggle svg{width:24px;height:24px;stroke:var(--text-primary);transition:all .3s ease}body:not(.dark-mode) #theme-toggle .sun-icon{display:block;fill:none}body:not(.dark-mode) #theme-toggle .moon-icon{display:none}body.dark-mode #theme-toggle .sun-icon{display:none}body.dark-mode #theme-toggle .moon-icon{display:block;fill:var(--text-primary);stroke:var(--text-primary)}
-    .country-drawer{margin-top:25px;}.drawer-toggle{width:100%;padding:15px;background-color:var(--bg-secondary);border:1px solid var(--border-color);border-radius:var(--border-radius-sm);color:var(--text-primary);font-size:1.1rem;font-weight:500;cursor:pointer;text-align:center;transition:background-color .2s,color .2s;position:relative}.drawer-toggle:hover,.drawer-toggle.active{background-color:var(--primary-color);color:#fff;border-color:var(--primary-color)}.drawer-toggle::after{content:'▼';font-size:.7em;position:absolute;right:20px;top:50%;transform:translateY(-50%) rotate(0);transition:transform .3s ease-in-out}.drawer-toggle.active::after{transform:translateY(-50%) rotate(180deg)}.drawer-content{max-height:0;overflow:hidden;transition:max-height .5s ease-in-out,padding .5s ease-in-out;background:var(--bg-secondary);border-radius:var(--border-radius);margin-top:10px;padding:0}.drawer-content.visible{max-height:1000px;padding:20px}.country-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:20px}.country-item{text-align:center}.country-button{display:block;width:100%;padding-top:60%;position:relative;background-size:cover;background-position:center;border:1px solid var(--border-color);border-radius:var(--border-radius-sm);transition:transform .2s,box-shadow .2s;overflow:hidden}.country-button:hover{transform:scale(1.05);box-shadow:0 5px 15px rgba(0,0,0,.1)}.country-name{margin-top:8px;font-size:.9rem;color:var(--text-light);font-weight:500}
+    :root{--bg-gradient:linear-gradient(135deg,#667eea 0%,#764ba2 100%);--bg-primary:#fff;--bg-secondary:#f8f9fa;--text-primary:#2c3e50;--text-light:#adb5bd;--border-color:#dee2e6;--primary-color:#3498db;--success-color:#2ecc71;--error-color:#e74c3c;--result-success-bg:#d4edda;--result-success-text:#155724;--result-error-bg:#f8d7da;--result-error-text:#721c24;--result-warning-bg:#fff3cd;--result-warning-text:#856404;--border-radius:12px;--border-radius-sm:8px}body.dark-mode{--bg-gradient:linear-gradient(135deg,#232526 0%,#414345 100%);--bg-primary:#2c3e50;--bg-secondary:#34495e;--text-primary:#ecf0f1;--text-light:#95a5a6;--border-color:#465b71;--result-success-bg:#2c5a3d;--result-success-text:#fff;--result-error-bg:#5a2c2c;--result-error-text:#fff;--result-warning-bg:#5a4b1e;--result-warning-text:#fff8dd}html{height:100%}body{font-family:'Inter',sans-serif;background:var(--bg-gradient);background-attachment:fixed;color:var(--text-primary);line-height:1.6;margin:0;padding:0;min-height:100%;display:flex;flex-direction:column;align-items:center;transition:background .3s ease,color .3s ease}.container{max-width:800px;width:100%;padding:20px;box-sizing:border-box}.header{text-align:center;margin-bottom:30px}.main-title{font-size:2.2rem;font-weight:700;color:#fff;text-shadow:1px 1px 3px rgba(0,0,0,.2)}.card{background:var(--bg-primary);border-radius:var(--border-radius);padding:25px;box-shadow:0 8px 20px rgba(0,0,0,.1);margin-bottom:25px;transition:background .3s ease}.form-section{display:flex;flex-direction:column;align-items:center}.form-label{display:block;font-weight:500;margin-bottom:8px;color:var(--text-primary);width:100%;max-width:450px;text-align:left}.input-wrapper{width:100%;max-width:450px;margin-bottom:15px}.form-input{width:100%;padding:12px;border:1px solid var(--border-color);border-radius:var(--border-radius-sm);font-size:.95rem;box-sizing:border-box;background-color:var(--bg-secondary);color:var(--text-primary);transition:border-color .3s ease,background-color .3s ease}textarea.form-input{min-height:60px;resize:vertical}.btn-primary{background:linear-gradient(135deg,var(--primary-color),#2980b9);color:#fff;padding:12px 25px;border:none;border-radius:var(--border-radius-sm);font-size:1rem;font-weight:500;cursor:pointer;width:100%;max-width:450px;box-sizing:border-box;display:flex;align-items:center;justify-content:center}.btn-primary:disabled{background:#bdc3c7;cursor:not-allowed}.btn-secondary{background:rgba(230,230,230,0.5);color:var(--text-primary);padding:8px 15px;border:1px solid rgba(0,0,0,0.1);border-radius:var(--border-radius-sm);font-size:.9rem;cursor:pointer;backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}.loading-spinner{width:16px;height:16px;border:2px solid hsla(0,0%,100%,.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;display:none;margin-left:8px}@keyframes spin{to{transform:rotate(360deg)}}.result-section{margin-top:25px}.result-card{padding:18px;border-radius:var(--border-radius-sm);margin-bottom:12px;transition:background-color .3s,color .3s,border-color .3s;background-color:var(--bg-secondary)}.result-card h2{margin-top:0;border-bottom:1px solid var(--border-color);padding-bottom:10px;margin-bottom:15px}.domain-card{margin-bottom:20px}.domain-ip-list{border:1px solid var(--border-color);padding:10px;border-radius:var(--border-radius-sm);max-height:250px;overflow-y:auto;margin-top:10px}.result-success{background-color:var(--result-success-bg);border-left:4px solid var(--success-color);color:var(--result-success-text)}.result-error{background-color:var(--result-error-bg);border-left:4px solid var(--error-color);color:var(--result-error-text)}.result-warning{background-color:var(--result-warning-bg);border-left:4px solid #f39c12;color:var(--result-warning-text)}.result-card h3{display:flex;align-items:center;margin-top:0}.result-card h3 .status-icon-prefix{margin-right:8px}.ip-item-multi{display:flex;justify-content:space-between;align-items:center;padding:8px 5px}.ip-item-multi:not(:last-child){border-bottom:1px solid var(--border-color)}.ip-tag{background-color:var(--bg-primary);padding:3px 7px;border-radius:5px;font-family:'Courier New',Courier,monospace;cursor:pointer}.ip-details{font-size:.9em;color:var(--text-light);padding-left:15px}.copy-btn{cursor:pointer;font-weight:600}.action-buttons{margin-top:20px;display:flex;justify-content:center}.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:12px 20px;border-radius:var(--border-radius-sm);z-index:1001;opacity:0;transition:opacity .3s,transform .3s}.toast.show{opacity:1}.api-docs{margin-top:30px;padding:25px;background:var(--bg-primary);border-radius:var(--border-radius);transition:background .3s ease}.api-docs p{background-color:var(--bg-secondary);border:1px solid var(--border-color);padding:10px;border-radius:4px;margin-bottom:10px;word-break:break-all;transition:background .3s ease,border-color .3s ease}.api-docs p code{background:none;padding:0}.footer{text-align:center;padding:20px;margin-top:30px;color:hsla(0,0%,100%,.8);font-size:.85em;border-top:1px solid hsla(0,0%,100%,.1)}.github-corner svg{fill:var(--primary-color);color:#fff;position:fixed;top:0;border:0;right:0;z-index:9999}body.dark-mode .github-corner svg{fill:#fff;color:#151513}.octo-arm{transform-origin:130px 106px}.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}#theme-toggle{position:fixed;bottom:25px;right:25px;z-index:1002;background:var(--bg-primary);border:1px solid var(--border-color);width:48px;height:48px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;box-shadow:0 4px 8px rgba(0,0,0,.15);transition:background-color .3s,border-color .3s}#theme-toggle svg{width:24px;height:24px;stroke:var(--text-primary);transition:all .3s ease}body:not(.dark-mode) #theme-toggle .sun-icon{display:block;fill:none}body:not(.dark-mode) #theme-toggle .moon-icon{display:none}body.dark-mode #theme-toggle .sun-icon{display:none}body.dark-mode #theme-toggle .moon-icon{display:block;fill:var(--text-primary);stroke:var(--text-primary)}
+    .country-drawer{margin-top:25px;}.drawer-toggle{width:100%;padding:15px;background-color:var(--bg-secondary);border:1px solid var(--border-color);border-radius:var(--border-radius-sm);color:var(--text-primary);font-size:1.1rem;font-weight:500;cursor:pointer;text-align:center;transition:background-color .2s,color .2s;position:relative}.drawer-toggle:hover,.drawer-toggle.active{background-color:var(--primary-color);color:#fff;border-color:var(--primary-color)}.drawer-toggle::after{content:'▼';font-size:.7em;position:absolute;right:20px;top:50%;transform:translateY(-50%) rotate(0);transition:transform .3s ease-in-out}.drawer-toggle.active::after{transform:translateY(-50%) rotate(180deg)}.drawer-content{max-height:0;overflow:hidden;transition:max-height .5s ease-in-out,padding .5s ease-in-out;background:var(--bg-secondary);border-radius:var(--border-radius);margin-top:10px;padding:0}.drawer-content.visible{max-height:60vh;overflow-y:auto;padding:20px}.country-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:20px}.country-item{text-align:center}.country-button{display:block;width:100%;padding-top:60%;position:relative;background-size:cover;background-position:center;border:1px solid var(--border-color);border-radius:var(--border-radius-sm);transition:transform .2s,box-shadow .2s;overflow:hidden}.country-button:hover{transform:scale(1.05);box-shadow:0 5px 15px rgba(0,0,0,.1)}.country-name{margin-top:8px;font-size:.9rem;color:var(--text-light);font-weight:500}
   </style>
 </head>
 <body>
+  <a href="https://github.com/mehdi-hexing/CF-Workers-CheckProxyIP" target="_blank" class="github-corner" aria-label="View source on Github"><svg width="80" height="80" viewBox="0 0 250 250" style="position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
   <div class="container">
     <header class="header">
       <h1 class="main-title">Proxy IP Checker</h1>
@@ -774,7 +773,7 @@ function generateMainHTML(faviconURL) {
       </div>
     </div>
     <div class="country-drawer">
-        <button id="drawer-toggle" class="drawer-toggle">Select From Country List</button>
+        <button id="drawer-toggle" class="drawer-toggle">Need ProxyIP? Click Here</button>
         <div id="drawer-content" class="drawer-content">
             <div class="country-grid">
                 ${countryButtonsHTML}
@@ -785,7 +784,7 @@ function generateMainHTML(faviconURL) {
        <h3 style="margin-bottom:15px; text-align:center;">URL PATH Documentation</h3>
        <p><code>/proxyip/IP1,IP2,IP3,...</code></p>
        <p><code>/iprange/127.0.0.0/24,... or 127.0.0.0-255,...</code></p>
-       <p><code>/file/https://your.file/ip1.txt or ip2.csv</code></p>
+       <p><code>/file/https://your.file/ip1.txt or ip1.csv</code></p>
        <hr style="border:0; border-top: 1px solid var(--border-color); margin: 20px 0;"/>
     </div>
     <footer class="footer">
@@ -816,11 +815,13 @@ export default {
             let ipsToCheck = [];
             let options = {};
             let pageType = '';
+            let contentHash = '';
 
             if (path.toLowerCase().startsWith('/iprange/')) {
                 pageType = 'iprange';
                 const ranges_string = decodeURIComponent(path.substring('/iprange/'.length));
                 ipsToCheck = ranges_string.split(',').flatMap(range => parseIPRangeServer(range.trim()));
+                contentHash = simpleHash(ipsToCheck.join(''));
                 options = {
                     title: "IP Range's Results:",
                     subtitleLabel: "Range's:",
@@ -834,7 +835,7 @@ export default {
                     const response = await fetch(targetUrl, { headers: {'User-Agent': 'ProxyChecker/1.0'} });
                     if (!response.ok) throw new Error(`Fetch failed: ${response.statusText}`);
                     const text = await response.text();
-                    const contentHash = simpleHash(text);
+                    contentHash = simpleHash(text);
                     const foundIPs = [...new Set([...(text.match(forgivingIPv4Regex) || []), ...(text.match(ipv6Regex) || [])])];
                     ipsToCheck = foundIPs.filter(ip => {
                         const parts = ip.split(':');
@@ -844,13 +845,12 @@ export default {
                         title: 'File Test Results:',
                         subtitleLabel: 'File Link Address:',
                         subtitleContent: targetUrl,
-                        contentHash: contentHash
                     };
                 } catch(e) {
                     return new Response(`Error processing file: ${e.message}`, { status: 500 });
                 }
             }
-            return new Response(generateClientSideCheckPageHTML({ ...options, ipsToCheck, temporaryTOKEN, pageType }), { headers: { 'Content-Type': 'text/html;charset=UTF-8' } });
+            return new Response(generateClientSideCheckPageHTML({ ...options, ipsToCheck, temporaryTOKEN, pageType, contentHash }), { headers: { 'Content-Type': 'text/html;charset=UTF-8' } });
         }
         
         if (path === '/client.js') {
