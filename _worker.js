@@ -210,15 +210,25 @@ function generateClientSideCheckPageHTML({ title, subtitleLabel, subtitleContent
             localStorage.setItem('theme', body.classList.contains('dark-mode') ? 'dark' : 'light');
         }
 
-        async function fetchAPI(path, params) {
-            params.append('token', TEMP_TOKEN);
-            const response = await fetch(path + '?' + params.toString());
-            const data = await response.json();
-            if (!response.ok && typeof data.success === 'undefined') {
-                throw new Error('API Error: ' + (data.message || response.statusText));
-            }
-            return data;
+async function fetchAPI(path, params) {
+        if (!TEMP_TOKEN) {
+             await new Promise(resolve => setTimeout(resolve, 500));
+             if (!TEMP_TOKEN) await fetch('/api/get-token').then(res => res.json()).then(data => { TEMP_TOKEN = data.token; });
+             if (!TEMP_TOKEN) throw new Error("Could not retrieve session token.");
         }
+        params.append('token', TEMP_TOKEN);
+
+        // The corrected line to build the full URL with parameters
+        const fullPathWithParams = '/api' + path + '?' + params.toString();
+        
+        const response = await fetch(fullPathWithParams);
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || data.message || 'API request failed');
+        }
+        return data;
+    }
 
         function renderResult(item) {
             const container = document.getElementById('results-container');
