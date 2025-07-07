@@ -420,12 +420,26 @@ const CLIENT_SCRIPT = `
         if(spinner) spinner.style.display = checking ? 'inline-block' : 'none';
     }
 
-    async function fetchAPI(path, params) {
+async function fetchAPI(path, params) {
         if (!TEMP_TOKEN) {
              await new Promise(resolve => setTimeout(resolve, 500));
              if (!TEMP_TOKEN) await fetch('/api/get-token').then(res => res.json()).then(data => { TEMP_TOKEN = data.token; });
              if (!TEMP_TOKEN) throw new Error("Could not retrieve session token.");
         }
+        params.append('token', TEMP_TOKEN);
+
+        // Correct URL construction with parameters
+        const fullPathWithParams = '/api' + path + '?' + params.toString();
+        
+        const response = await fetch(fullPathWithParams);
+        const data = await response.json();
+        
+        // Checking the HTTP Answer Status
+        if (!response.ok) {
+            throw new Error(data.error || data.message || 'API request failed');
+        }
+        return data;
+    }
         params.append('token', TEMP_TOKEN);
         const response = await fetch('/api' + path, {
             method: 'GET'
