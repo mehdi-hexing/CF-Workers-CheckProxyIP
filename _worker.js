@@ -69,7 +69,7 @@ async function checkProxyIP(proxyIP) {
   try {
     tcpSocket = connect({ hostname: hostToCheck.replace(/\[|\]/g, ''), port: portRemote });
     const writer = tcpSocket.writable.getWriter();
-    const httpRequest = 'GET /cdn-cgi/trace HTTP/1.1\r\nHost: speed.cloudflare.com\r\nUser-Agent: checkip/diana/\r\nConnection: close\r\n\r\n';
+    const httpRequest = 'GET /cdn-cgi/trace HTTP/1.1\r\nHost: speed.cloudflare.com\r\nUser-Agent: checkip/mehdi/\r\nConnection: close\r\n\r\n';
     await writer.write(new TextEncoder().encode(httpRequest));
 
     const reader = tcpSocket.readable.getReader();
