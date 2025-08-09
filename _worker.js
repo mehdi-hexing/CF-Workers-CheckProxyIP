@@ -67,8 +67,6 @@ function readWithTimeout(reader, timeout) {
   });
 }
 
-// --- Your Original Helper Functions (Unchanged) ---
-
 async function doubleHash(text) {
   const encoder = new TextEncoder();
   const firstHashBuffer = await crypto.subtle.digest('MD5', encoder.encode(text));
@@ -113,8 +111,6 @@ async function resolveDomain(domain) {
   }
 }
 
-// --- REPLACED checkProxyIP FUNCTION ---
-
 async function checkProxyIP(proxyIPInput) {
     let portRemote = 443;
     let hostToCheck = proxyIPInput;
@@ -156,7 +152,6 @@ async function checkProxyIP(proxyIPInput) {
     }
 }
 
-
 async function getIpInfo(ip) {
     try {
         const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,message,country,countryCode,as&lang=en`);
@@ -191,7 +186,7 @@ function parseIPRangeServer(rangeInput) {
 const forgivingIPv4Regex = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
 const ipv6Regex = /(?:[A-F0-9]{1,4}:){7}[A-F0-9]{1,4}|\[(?:[A-F0-9]{1,4}:){7}[A-F0-9]{1,4}\]/gi;
 
-// --- HTML Page Generators (Unchanged) ---
+// --- HTML Page Generators ---
 
 function generateDomainCheckPageHTML({ domains, temporaryTOKEN }) {
     const domainsJson = JSON.stringify(domains);
@@ -246,7 +241,7 @@ function generateDomainCheckPageHTML({ domains, temporaryTOKEN }) {
         let totalIPs = 0;
 
         function showToast(message) { const toast = document.getElementById('toast'); toast.textContent = message; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 3000); }
-        function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const o = element ? element.textContent : ''; if(element) {element.textContent = 'Copied!'; setTimeout(()=>element.textContent=o, 2000);} else { showToast('Copied!')} }).catch(err => { showToast('Copy failed!'); }); }
+        function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const o = element ? element.textContent : ''; if(element) {element.textContent = 'Copied!'; setTimeout(()=>element.textContent=o, 2000);} else { showToast('Copied!')} }).catch(err => { showToast('Copy failed!'); console.error(err); }); }
         function toggleTheme() {
             const body = document.body; body.classList.toggle('dark-mode');
             localStorage.setItem('theme', body.classList.contains('dark-mode') ? 'dark' : 'light');
@@ -339,8 +334,8 @@ function generateDomainCheckPageHTML({ domains, temporaryTOKEN }) {
                  const successfulIPsText = successfulIPs.map(i=>i.ip).join('\\n');
                  const dataUrl = \`data:text/plain;charset=utf-8;base64,\${btoa(unescape(encodeURIComponent(successfulIPsText)))}\`;
                  const downloadButton = \`<a href="\${dataUrl}" download="successful_ips.txt" class="btn btn-secondary">📥 Download Results</a>\`;
-                 // FIX: Correctly escape the string for the onclick attribute
-                 actionContainer.innerHTML = \`<div class="action-buttons">\${downloadButton}<button class="btn btn-primary" onclick="copyToClipboard(\${JSON.stringify(successfulIPsText)})">📋 Copy All</button></div>\`;
+                 // ✅ FIX: Use JSON.stringify to safely embed the text in the onclick attribute
+                 actionContainer.innerHTML = \`<div class="action-buttons">\${downloadButton}<button class="btn btn-primary" onclick='copyToClipboard(\${JSON.stringify(successfulIPsText)})'>📋 Copy All</button></div>\`;
             }
         }
         
@@ -419,7 +414,7 @@ function generateClientSideCheckPageHTML({ title, subtitleLabel, subtitleContent
         let allResults = {};
 
         function showToast(message) { const toast = document.getElementById('toast'); toast.textContent = message; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 3000); }
-        function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const o = element ? element.textContent : ''; if(element) {element.textContent = 'Copied!'; setTimeout(()=>element.textContent=o, 2000);} else { showToast('Copied!')} }).catch(err => { showToast('Copy failed!'); }); }
+        function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const o = element ? element.textContent : ''; if(element) {element.textContent = 'Copied!'; setTimeout(()=>element.textContent=o, 2000);} else { showToast('Copied!')} }).catch(err => { showToast('Copy failed!'); console.error(err); }); }
         function toggleTheme() {
             const body = document.body; body.classList.toggle('dark-mode');
             localStorage.setItem('theme', body.classList.contains('dark-mode') ? 'dark' : 'light');
@@ -529,8 +524,8 @@ function generateClientSideCheckPageHTML({ title, subtitleLabel, subtitleContent
                     const dataUrl = \`data:text/plain;charset=utf-8;base64,\${btoa(unescape(encodeURIComponent(successfulIPsText)))}\`;
                     downloadButton = \`<a href="\${dataUrl}" download="successful_ips.txt" class="btn btn-secondary">📥 Download Results</a>\`;
                  }
-                 // FIX: Correctly escape the string for the onclick attribute
-                 actionContainer.innerHTML = \`<div class="action-buttons">\${downloadButton}<button class="btn btn-primary" onclick="copyToClipboard(\${JSON.stringify(successfulIPsText)})">📋 Copy All</button></div>\`;
+                 // ✅ FIX: Use JSON.stringify to safely embed the text in the onclick attribute
+                 actionContainer.innerHTML = \`<div class="action-buttons">\${downloadButton}<button class="btn btn-primary" onclick='copyToClipboard(\${JSON.stringify(successfulIPsText)})'>📋 Copy All</button></div>\`;
             }
         }
         
@@ -613,7 +608,7 @@ const CLIENT_SCRIPT = `
             } else {
                  showToast(successMessage);
             }
-        }).catch(err => showToast('Copy failed.'));
+        }).catch(err => { showToast('Copy failed.'); console.error(err); });
     }
 
     function toggleCheckButton(checking) {
@@ -741,7 +736,6 @@ const CLIENT_SCRIPT = `
         }
     }
     
-    // NEW AND IMPROVED FUNCTION
     async function checkAndDisplayDomain_graphical(domain) {
         const resultDiv = document.getElementById('result');
         resultDiv.innerHTML = '<div class="result-card"><p style="text-align:center;">Resolving & Checking...</p></div>';
@@ -761,8 +755,7 @@ const CLIENT_SCRIPT = `
             const ipListDiv = resultCard.querySelector('.domain-ip-list');
 
             let successCount = 0;
-            const successfulIPs = []; // Array to hold successful IPs
-
+            const successfulIPs = [];
             const checkPromises = ips.map(async (ip, index) => {
                 const ipItem = document.createElement('div');
                 ipItem.className = 'ip-item-multi';
@@ -774,7 +767,7 @@ const CLIENT_SCRIPT = `
                     const statusSpan = document.getElementById(\`status-\${index}\`);
                     if (checkData.success) {
                         successCount++;
-                        successfulIPs.push(checkData.proxyIP); // Add successful IP to the array
+                        successfulIPs.push(checkData.proxyIP);
                         const ipInfo = await fetchAPI('/ip-info', new URLSearchParams({ ip: ip }));
                         statusSpan.innerHTML = \`✅ (\${ipInfo.country || 'N/A'} - \${ipInfo.as || 'N/A'})\`;
                     } else {
@@ -790,11 +783,10 @@ const CLIENT_SCRIPT = `
             resultCard.classList.add(successCount > 0 ? 'result-success' : 'result-error');
             resultCard.querySelector('h3').innerHTML = \`\${successCount > 0 ? '✅' : '❌'} \${successCount} of \${ips.length} IPs are valid for \${domain}\`;
 
-            // Add the copy all button if there are successful IPs
             if (successfulIPs.length > 0) {
                 const textToCopy = successfulIPs.join('\\n');
-                // FIX: Correctly escape the string for the onclick attribute
-                const actionButtonHTML = \`<div class="action-buttons"><button class="btn btn-primary" onclick="copyToClipboard(\${JSON.stringify(textToCopy)})">📋 Copy All Successful IPs</button></div>\`;
+                // ✅ FIX: Use JSON.stringify to safely embed the text in the onclick attribute
+                const actionButtonHTML = \`<div class="action-buttons"><button class="btn btn-primary" onclick='copyToClipboard(\${JSON.stringify(textToCopy)})'>📋 Copy All Successful IPs</button></div>\`;
                 resultCard.insertAdjacentHTML('beforeend', actionButtonHTML);
             }
 
@@ -804,7 +796,6 @@ const CLIENT_SCRIPT = `
         }
     }
     
-    // NEW AND IMPROVED FUNCTION
     async function processMultipleInputs(mainInputs) {
         const resultDiv = document.getElementById('result');
         resultDiv.innerHTML = '<div class="result-card"><p style="text-align:center; padding: 20px;">Processing...</p></div>';
@@ -867,8 +858,8 @@ const CLIENT_SCRIPT = `
 
         if (successfulIPs.length > 0) {
             const textToCopy = successfulIPs.map(i => i.ip).join('\\n');
-            // FIX: Correctly escape the string for the onclick attribute
-            const actionButtonHTML = \`<div class="action-buttons"><button class="btn btn-primary" onclick="copyToClipboard(\${JSON.stringify(textToCopy)})">📋 Copy All Successful IPs</button></div>\`;
+            // ✅ FIX: Use JSON.stringify to safely embed the text in the onclick attribute
+            const actionButtonHTML = \`<div class="action-buttons"><button class="btn btn-primary" onclick='copyToClipboard(\${JSON.stringify(textToCopy)})'>📋 Copy All Successful IPs</button></div>\`;
             mainCard.insertAdjacentHTML('beforeend', actionButtonHTML);
         }
     }
@@ -1038,7 +1029,7 @@ function generateMainHTML(faviconURL) {
 }
 
 
-// --- Main Fetch Handler (Unchanged) ---
+// --- Main Fetch Handler ---
 export default {
     async fetch(request, env, ctx) {
         const url = new URL(request.url);
