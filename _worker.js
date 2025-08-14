@@ -2,7 +2,15 @@ import { connect } from 'cloudflare:sockets';
 
 async function checkProxyIP(proxyIPInput, env) {
     try {
-        const proxyCheckResponse = await fetch(`http://zero000.serv00.net:33163/api/v1/check?proxy=${encodeURIComponent(proxyIPInput)}`);
+        const apiUrl = env.API_URL || env.BACKUP_API_URL;
+
+        if (!apiUrl) {
+            throw new Error("API URL not configured. Please set API_URL or BACKUP_API_URL environment variables.");
+        }
+
+        const fullRequestUrl = `${apiUrl}?proxy=${encodeURIComponent(proxyIPInput)}`;
+        const proxyCheckResponse = await fetch(fullRequestUrl);
+
 
         if (!proxyCheckResponse.ok) {
             throw new Error(`Proxy check API failed with status: ${proxyCheckResponse.status}`);
