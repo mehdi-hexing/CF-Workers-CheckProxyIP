@@ -1,5 +1,5 @@
 import { connect } from 'cloudflare:sockets';
-
+  
 async function checkProxyIP(proxyIPInput, env) {
     try {
         const apiUrl = env.API_URL || env.BACKUP_API_URL;
@@ -1121,3 +1121,4 @@ export default {
         return new Response('Not Found', { status: 404 });
     }
 };
+
