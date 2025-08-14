@@ -1,64 +1,24 @@
 import { connect } from 'cloudflare:sockets';
 
-function getConnectionType(asOrganization) {
-    if (!asOrganization) return 'Unknown';
-    const org = asOrganization.toLowerCase();
-    
-    const vpnPatterns = ['vpn', 'proxy', 'privacy', 'anonymous'];
-    const hostingPatterns = ['hosting', 'server', 'cloud', 'datacenter', 'digital ocean', 'amazon', 'google', 'microsoft', 'ovh', 'hetzner'];
-    const mobilePatterns = ['mobile', 'cellular', 'wireless', 'telecom'];
-    const ispPatterns = ['broadband', 'cable', 'fiber', 'fibre', 'internet', 'communications'];
-    
-    if (vpnPatterns.some(pattern => org.includes(pattern))) return 'VPN/Proxy';
-    if (hostingPatterns.some(pattern => org.includes(pattern))) return 'Hosting/Datacenter';
-    if (mobilePatterns.some(pattern => org.includes(pattern))) return 'Mobile/Cellular';
-    if (ispPatterns.some(pattern => org.includes(pattern))) return 'ISP/Residential';
-    
-    return 'Unknown';
-}
-
-// Assesses risk based on IP info
-function assessRisk(ipInfo) {
-    const connectionType = getConnectionType(ipInfo.as);
-    let riskScore = 10;
-    let riskLevel = 'Low';
-    let riskEmoji = '🟢';
-
-    switch (connectionType) {
-        case 'VPN/Proxy':
-        case 'Hosting/Datacenter':
-            riskScore = 80;
-            riskLevel = 'High';
-            riskEmoji = '🔴';
-            break;
-        case 'Mobile/Cellular':
-            riskScore = 40;
-            riskLevel = 'Medium';
-            riskEmoji = '🟡';
-            break;
-        case 'ISP/Residential':
-        case 'Unknown':
-        default:
-            break;
-    }
-    
-    return { score: riskScore, level: riskLevel, emoji: riskEmoji };
-}
-
-
-async function checkProxyIP(proxyIPInput) {
+async function checkProxyIP(proxyIPInput, env) {
     try {
-        const startTime = performance.now();
-        const response = await fetch(`http://zero000.serv00.net:33163/api/v1/check?proxy=${encodeURIComponent(proxyIPInput)}`);
-        const responseTime = Math.round(performance.now() - startTime);
+        const proxyCheckResponse = await fetch(`http://zero000.serv00.net:33163/api/v1/check?proxy=${encodeURIComponent(proxyIPInput)}`);
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`API Error: ${response.status} - ${errorText}`);
+        if (!proxyCheckResponse.ok) {
+            throw new Error(`Proxy check API failed with status: ${proxyCheckResponse.status}`);
         }
 
-        const data = await response.json();
-
+        const data = await proxyCheckResponse.json();
+        
+        if (data.proxyip !== true) {
+            return {
+                success: false,
+                proxyIP: proxyIPInput,
+                timestamp: new Date().toISOString(),
+                error: "Proxy check failed (API returned false)."
+            };
+        }
+        
         let portRemote = 443;
         let hostToCheck = proxyIPInput;
 
@@ -77,40 +37,36 @@ async function checkProxyIP(proxyIPInput) {
             }
         }
         
-        if (data.proxyip === true) {
-            const ipInfo = await getIpInfo(hostToCheck.replace(/\[|\]/g, ''));
-            const risk = assessRisk(ipInfo);
-            
-            return {
-                success: true,
-                proxyIP: hostToCheck,
-                portRemote: portRemote,
-                statusCode: 200,
-                responseSize: responseTime,
-                timestamp: new Date().toISOString(),
-                info: ipInfo, 
-                risk: risk     
-            };
-        } else {
-            return {
-                success: false,
-                proxyIP: hostToCheck,
-                portRemote: portRemote,
-                timestamp: new Date().toISOString(),
-                error: "Proxy check failed (API returned false)."
-            };
-        }
+        const cleanIp = hostToCheck.replace(/\[|\]/g, '');
+        const ipInfo = await getIpInfo(cleanIp);
+        
+        const score = data.riskScore || 0;
+        const level = data.riskLevel || 'Unknown';
+        let emoji = '⚪️';
+        if (level.toLowerCase() === 'high') emoji = '🔴';
+        else if (level.toLowerCase() === 'medium') emoji = '🟡';
+        else if (level.toLowerCase() === 'low') emoji = '🟢';
+        
+        const risk = { score, level, emoji };
+        
+        return {
+            success: true,
+            proxyIP: hostToCheck,
+            portRemote: portRemote,
+            timestamp: new Date().toISOString(),
+            info: ipInfo, 
+            risk: risk     
+        };
+
     } catch (error) {
         return {
             success: false,
             proxyIP: proxyIPInput,
-            portRemote: 443,
             timestamp: new Date().toISOString(),
-            error: error.message || "API request failed"
+            error: error.message || "An unexpected error occurred"
         };
     }
 }
-
 
 async function doubleHash(text) {
   const encoder = new TextEncoder();
@@ -717,7 +673,7 @@ const CLIENT_SCRIPT = `
                 resultCard.innerHTML = \`
                     <h3>✅ Valid Proxy IP</h3>
                     <p><strong>IP Address:</strong> <span class="ip-tag" data-copy="\${data.proxyIP}">\${data.proxyIP}</span></p>
-                    <p><strong>Risk:</strong> \${data.risk.emoji} \${data.risk.level} (Score: \${data.risk.score})</p>
+                    <p><strong>⚠️ Risk:</strong> \${data.risk.emoji} \${data.risk.level} (Score: \${data.risk.score})</p>
                     <p><strong>🌍 Country:</strong> \${data.info.country || 'N/A'}</p>
                     <p><strong>🌐 AS:</strong> \${data.info.as || 'N/A'}</p>
                     <p><strong>🔌 Port:</strong> \${data.portRemote}</p>
@@ -1070,7 +1026,7 @@ export default {
                     subtitleLabel: "Range's:",
                     subtitleContent: ranges_string,
                 };
-            } else {
+            } else { // /file/ path
                 pageType = 'file';
                 const targetUrl = decodeURIComponent(request.url.substring(request.url.indexOf('/file/') + 6));
                 if (!targetUrl || !targetUrl.startsWith('http')) return new Response('Invalid URL', {status: 400});
@@ -1124,7 +1080,7 @@ export default {
             if (path.toLowerCase() === '/api/check') {
                 const proxyIPInput = url.searchParams.get('proxyip');
                 if (!proxyIPInput) return new Response(JSON.stringify({success: false, error: 'Missing proxyip parameter'}), { status: 400, headers: { "Content-Type": "application/json" }});
-                const result = await checkProxyIP(proxyIPInput);
+                const result = await checkProxyIP(proxyIPInput, env);
                 return new Response(JSON.stringify(result), { status: 200, headers: { "Content-Type": "application/json" } });
             }
             
