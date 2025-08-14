@@ -1,8 +1,5 @@
 import { connect } from 'cloudflare:sockets';
 
-// --- New Validation & Risk Assessment Logic ---
-
-// Determines connection type based on ASN organization name
 function getConnectionType(asOrganization) {
     if (!asOrganization) return 'Unknown';
     const org = asOrganization.toLowerCase();
@@ -45,7 +42,7 @@ function assessRisk(ipInfo) {
             break;
     }
     
-    return { score: riskScore, level: riskLevel, emoji: riskEmoji, type: connectionType };
+    return { score: riskScore, level: riskLevel, emoji: riskEmoji };
 }
 
 
@@ -81,7 +78,6 @@ async function checkProxyIP(proxyIPInput) {
         }
         
         if (data.proxyip === true) {
-            // Get IP info for risk assessment
             const ipInfo = await getIpInfo(hostToCheck.replace(/\[|\]/g, ''));
             const risk = assessRisk(ipInfo);
             
@@ -92,8 +88,8 @@ async function checkProxyIP(proxyIPInput) {
                 statusCode: 200,
                 responseSize: responseTime,
                 timestamp: new Date().toISOString(),
-                info: ipInfo, // Keep original info
-                risk: risk     // Add risk object
+                info: ipInfo, 
+                risk: risk     
             };
         } else {
             return {
@@ -267,20 +263,16 @@ function generateDomainCheckPageHTML({ domains, temporaryTOKEN }) {
 
         function renderAllResults() {
             const container = document.getElementById('results-container');
-            // Sort by risk score ascending
             successfulIPs.sort((a, b) => (a.risk?.score || 999) - (b.risk?.score || 999));
             
             if (successfulIPs.length > 0) {
-                 container.innerHTML = ''; // Clear previous content
+                 container.innerHTML = ''; 
                  successfulIPs.forEach(item => {
-                    const detailsParts = [];
-                    if (item.info && item.info.country) detailsParts.push(item.info.country);
-                    if (item.info && item.info.as) detailsParts.push(item.info.as.substring(0, 20));
-                    const detailsText = detailsParts.length > 0 ? \`(\${detailsParts.join(' - ')})\` : '';
-                    const riskEmoji = item.risk?.emoji || '';
+                    const riskText = item.risk ? \`\${item.risk.emoji} \${item.risk.level} (\${item.risk.score})\` : '';
+                    const geoText = item.info ? \`(\${item.info.country} - \${item.info.as?.substring(0, 20)})\` : '';
                     const itemHTML = \`<div class="ip-item">\` + 
-                                     \`<div>\${riskEmoji} <span class="ip-tag" onclick="copyToClipboard('\${item.ip}', this)">\${item.ip}</span></div>\` +
-                                     \`<span class="ip-details">\${detailsText}</span></div>\`;
+                                     \`<div><span class="ip-tag" onclick="copyToClipboard('\${item.ip}', this)">\${item.ip}</span></div>\` +
+                                     \`<span class="ip-details">\${riskText} \${geoText}</span></div>\`;
                     container.insertAdjacentHTML('beforeend', itemHTML);
                  });
             } else if (checkedCount >= totalIPs) {
@@ -326,7 +318,6 @@ function generateDomainCheckPageHTML({ domains, temporaryTOKEN }) {
                     try {
                         const checkData = await fetchAPI('/check', new URLSearchParams({ proxyip: ip }));
                         if (checkData.success) {
-                            // The full result object including info and risk is pushed
                             successfulIPs.push({ ip: checkData.proxyIP, ...checkData });
                         }
                     } catch (e) {
@@ -339,7 +330,7 @@ function generateDomainCheckPageHTML({ domains, temporaryTOKEN }) {
                 updateSummary();
             }
 
-            renderAllResults(); // Render sorted results at the end
+            renderAllResults(); 
             
             document.title = \`\${successfulIPs.length} Successful IPs Found\`;
             const actionContainer = document.getElementById('action-buttons-container');
@@ -444,20 +435,16 @@ function generateClientSideCheckPageHTML({ title, subtitleLabel, subtitleContent
 
         function renderAllResults() {
             const container = document.getElementById('results-container');
-            // Sort by risk score ascending
             successfulIPs.sort((a, b) => (a.risk?.score || 999) - (b.risk?.score || 999));
             
             if (successfulIPs.length > 0) {
-                 container.innerHTML = ''; // Clear previous content
+                 container.innerHTML = ''; 
                  successfulIPs.forEach(item => {
-                    const detailsParts = [];
-                    if (item.info && item.info.country) detailsParts.push(item.info.country);
-                    if (item.info && item.info.as) detailsParts.push(item.info.as.substring(0, 20));
-                    const detailsText = detailsParts.length > 0 ? \`(\${detailsParts.join(' - ')})\` : '';
-                    const riskEmoji = item.risk?.emoji || '';
+                    const riskText = item.risk ? \`\${item.risk.emoji} \${item.risk.level} (\${item.risk.score})\` : '';
+                    const geoText = item.info ? \`(\${item.info.country} - \${item.info.as?.substring(0, 20)})\` : '';
                     const itemHTML = \`<div class="ip-item">\` + 
-                                     \`<div>\${riskEmoji} <span class="ip-tag" onclick="copyToClipboard('\${item.ip}', this)">\${item.ip}</span></div>\` +
-                                     \`<span class="ip-details">\${detailsText}</span></div>\`;
+                                     \`<div><span class="ip-tag" onclick="copyToClipboard('\${item.ip}', this)">\${item.ip}</span></div>\` +
+                                     \`<span class="ip-details">\${riskText} \${geoText}</span></div>\`;
                     container.insertAdjacentHTML('beforeend', itemHTML);
                  });
             } else if (checkedCount >= ipsToCheck.length) {
@@ -529,7 +516,7 @@ function generateClientSideCheckPageHTML({ title, subtitleLabel, subtitleContent
                 updateSummary();
             }
 
-            renderAllResults(); // Render sorted results at the end
+            renderAllResults(); 
 
             document.title = \`\${successfulIPs.length} Successful IPs Found\`;
             const actionContainer = document.getElementById('action-buttons-container');
@@ -729,17 +716,17 @@ const CLIENT_SCRIPT = `
                 resultCard.className = 'result-card result-success';
                 resultCard.innerHTML = \`
                     <h3>✅ Valid Proxy IP</h3>
-                    <p><strong>\${data.risk.emoji} IP Address:</strong> <span class="ip-tag" data-copy="\${data.proxyIP}">\${data.proxyIP}</span></p>
+                    <p><strong>IP Address:</strong> <span class="ip-tag" data-copy="\${data.proxyIP}">\${data.proxyIP}</span></p>
+                    <p><strong>Risk:</strong> \${data.risk.emoji} \${data.risk.level} (Score: \${data.risk.score})</p>
                     <p><strong>🌍 Country:</strong> \${data.info.country || 'N/A'}</p>
                     <p><strong>🌐 AS:</strong> \${data.info.as || 'N/A'}</p>
                     <p><strong>🔌 Port:</strong> \${data.portRemote}</p>
-                    <p><strong>⚡️ Type:</strong> \${data.risk.type}</p>
                 \`;
             } else {
                 resultCard.className = 'result-card result-error';
                 resultCard.innerHTML = \`
                     <h3>❌ Invalid Proxy IP</h3>
-                    <p><strong>📍 IP Address:</strong> <span class="ip-tag" data-copy="\${proxyip}">\${proxyip}</span></p>
+                    <p><strong>IP Address:</strong> <span class="ip-tag" data-copy="\${proxyip}">\${proxyip}</span></p>
                     <p><strong>Error:</strong> \${data.error || 'Check failed.'}</p>
                 \`;
             }
@@ -778,13 +765,13 @@ const CLIENT_SCRIPT = `
 
             successfulIPs.sort((a, b) => a.risk.score - b.risk.score);
             
-            ipListDiv.innerHTML = ''; // Clear loading message
+            ipListDiv.innerHTML = ''; 
 
             successfulIPs.forEach(item => {
-                 const details = \`(\${item.info.country || 'N/A'} - \${item.info.as?.substring(0,20) || 'N/A'})\`;
+                 const details = \`\${item.risk.emoji} \${item.risk.level} (\${item.risk.score}) - (\${item.info.country || 'N/A'} - \${item.info.as?.substring(0,20) || 'N/A'})\`;
                  const ipItem = document.createElement('div');
                  ipItem.className = 'ip-item-multi';
-                 ipItem.innerHTML = \`<div>\${item.risk.emoji} <span class="ip-tag" data-copy="\${item.proxyIP}">\${item.proxyIP}</span></div><span class="ip-details">\${details}</span>\`;
+                 ipItem.innerHTML = \`<div><span class="ip-tag" data-copy="\${item.proxyIP}">\${item.proxyIP}</span></div><span class="ip-details">\${details}</span>\`;
                  ipListDiv.appendChild(ipItem);
             });
             
@@ -856,9 +843,10 @@ const CLIENT_SCRIPT = `
 
         if (successfulIPs.length > 0) {
             ipListContainer.innerHTML = '<h2>Successful IPs</h2>' + successfulIPs.map(item => {
-                const details = \`(\${item.info.country || 'N/A'} - \${item.info.as?.substring(0, 20) || 'N/A'})\`;
+                const geoDetails = \`(\${item.info.country || 'N/A'} - \${item.info.as?.substring(0, 20) || 'N/A'})\`;
+                const riskDetails = \`\${item.risk.emoji} \${item.risk.level} (\${item.risk.score})\`;
                 const prefix = item.domainIndex > -1 ? \`\${formatNumber(item.domainIndex + 1)} \` : '';
-                return \`<div class="ip-item-multi"><div>\${item.risk.emoji} \${prefix}<span class="ip-tag" data-copy="\${item.proxyIP}">\${item.proxyIP}</span></div><span class="ip-details">\${details}</span></div>\`;
+                return \`<div class="ip-item-multi"><div>\${prefix}<span class="ip-tag" data-copy="\${item.proxyIP}">\${item.proxyIP}</span></div><span class="ip-details">\${riskDetails} - \${geoDetails}</span></div>\`;
             }).join('');
         } else {
             ipListContainer.innerHTML = '<p>No valid proxies found.</p>';
@@ -924,8 +912,8 @@ const CLIENT_SCRIPT = `
         }
         listDiv.innerHTML = currentSuccessfulRangeIPs.map(item => 
             \`<div class="ip-item-multi">
-                <div>\${item.risk.emoji} <span class="ip-tag" data-copy="\${item.ip}">\${item.ip}</span></div>
-                <span class="ip-details">\${item.info.countryCode || 'N/A'}</span>
+                <div><span class="ip-tag" data-copy="\${item.ip}">\${item.ip}</span></div>
+                <span class="ip-details">\${item.risk.emoji} \${item.risk.level} (\${item.risk.score}) - \${item.info.countryCode || 'N/A'}</span>
             </div>\`
         ).join('');
     }
@@ -1082,7 +1070,7 @@ export default {
                     subtitleLabel: "Range's:",
                     subtitleContent: ranges_string,
                 };
-            } else { // /file/ path
+            } else {
                 pageType = 'file';
                 const targetUrl = decodeURIComponent(request.url.substring(request.url.indexOf('/file/') + 6));
                 if (!targetUrl || !targetUrl.startsWith('http')) return new Response('Invalid URL', {status: 400});
@@ -1149,14 +1137,6 @@ export default {
                 } catch (error) {
                     return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: { "Content-Type": "application/json" } });
                 }
-            }
-
-            if (path.toLowerCase() === '/api/ip-info') {
-                let ip = url.searchParams.get('ip') || request.headers.get('CF-Connecting-IP');
-                if (!ip) return new Response(JSON.stringify({success: false, error: 'IP parameter not provided'}), { status: 400, headers: { "Content-Type": "application/json" }});
-                if (ip.includes('[')) ip = ip.replace(/\[|\]/g, '');
-                const data = await getIpInfo(ip);
-                return new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } });
             }
             
             return new Response(JSON.stringify({success: false, error: 'API route not found'}), { status: 404, headers: { "Content-Type": "application/json" } });
