@@ -71,8 +71,8 @@ async function checkProxyIP(proxyIPInput, env) {
     const cleanIp = hostToCheck.replace(/\[|\]/g, '');
 
     const apiUrls = [
-        `http://proxy-ip-checker.vercel.app/api/v1/check?proxyip=${encodeURIComponent(proxyIPInput)}`,
-        `http://ServerOrVercel:port/api/v1/check?proxyip=${encodeURIComponent(proxyIPInput)}`
+        `http://your-proxy-ip-checker.vercel.app/api/v1/check?proxyip=${encodeURIComponent(proxyIPInput)}`,
+        `http://ServerIPOrVercel:port/api/v1/check?proxyip=${encodeURIComponent(proxyIPInput)}`
     ];
     let lastApiError = 'No response from APIs.';
 
@@ -89,7 +89,10 @@ async function checkProxyIP(proxyIPInput, env) {
             }
             const data = await response.json();
             if (data.proxyip === true) {
-                const ipInfo = await getIpInfo(cleanIp);
+                let ipInfo = await getIpInfo(cleanIp);
+                if (ipInfo.as === 'N/A' && data.asOrganization) {
+                    ipInfo.as = data.asOrganization;
+                }
                 return {
                     success: true,
                     proxyIP: hostToCheck,
@@ -130,11 +133,8 @@ async function checkProxyIP(proxyIPInput, env) {
     };
 }
 
-// Rewritten getIpInfo function with a fallback API
 async function getIpInfo(ip) {
     const defaultResponse = { country: 'N/A', countryCode: 'N/A', as: 'N/A' };
-
-    // 1. Primary API: ip-api.com
     try {
         const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,message,country,countryCode,as&lang=en`);
         if (response.ok) {
@@ -144,26 +144,8 @@ async function getIpInfo(ip) {
             }
         }
     } catch (e) {
-        console.error("Primary Geo API failed:", e.message);
+        console.error("Geo API (ip-api.com) failed:", e.message);
     }
-
-    // 2. Fallback API: ipapi.co
-    try {
-        const response = await fetch(`https://ipapi.co/${ip}/json/`);
-        if (response.ok) {
-            const data = await response.json();
-            if (!data.error) {
-                return {
-                    country: data.country_name || 'N/A',
-                    countryCode: data.country_code || 'N/A',
-                    as: data.org || 'N/A'
-                };
-            }
-        }
-    } catch (e) {
-        console.error("Fallback Geo API failed:", e.message);
-    }
-
     return defaultResponse;
 }
 
@@ -799,19 +781,19 @@ const CLIENT_SCRIPT = `
                 resultCard.className = 'result-card result-success';
                 resultCard.innerHTML = \`
                     <h3>✅ Valid Proxy IP</h3>
-                    <div class="result-item"><strong>IP Address:</strong> <span class="ip-tag" data-copy="\${data.proxyIP}">\${data.proxyIP}</span></div>
-                    <div class="result-item"><strong>⚡️ Ping:</strong> \${data.ping !== undefined ? data.ping + ' ms' : 'N/A'}</div>
-                    <div class="result-item"><strong>⚠️ Risk:</strong> \${formatRiskBadge(riskData, data.proxyIP)}</div>
-                    <div class="result-item"><strong>🌍 Country:</strong> \${data.info.country || 'N/A'}</div>
-                    <div class="result-item"><strong>🌐 AS:</strong> \${data.info.as || 'N/A'}</div>
-                    <div class="result-item"><strong>🔌 Port:</strong> \${data.portRemote}</div>
+                    <div class="result-item"><strong>IP Address:</strong><span class="value"><span class="ip-tag" data-copy="\${data.proxyIP}">\${data.proxyIP}</span></span></div>
+                    <div class="result-item"><strong>⚡️ Ping:</strong><span class="value">\${data.ping !== undefined ? data.ping + ' ms' : 'N/A'}</span></div>
+                    <div class="result-item"><strong>⚠️ Risk:</strong><span class="value">\${formatRiskBadge(riskData, data.proxyIP)}</span></div>
+                    <div class="result-item"><strong>🌍 Country:</strong><span class="value">\${data.info.country || 'N/A'}</span></div>
+                    <div class="result-item"><strong>🌐 AS:</strong><span class="value">\${data.info.as || 'N/A'}</span></div>
+                    <div class="result-item"><strong>🔌 Port:</strong><span class="value">\${data.portRemote}</span></div>
                 \`;
             } else {
                 resultCard.className = 'result-card result-error';
                 resultCard.innerHTML = \`
                     <h3>❌ Invalid Proxy IP</h3>
-                    <div class="result-item"><strong>IP Address:</strong> <span class="ip-tag" data-copy="\${proxyip}">\${proxyip}</span></div>
-                    <div class="result-item"><strong>Error:</strong> \${data.error || 'Check failed.'}</div>
+                    <div class="result-item"><strong>IP Address:</strong><span class="value"><span class="ip-tag" data-copy="\${proxyip}">\${proxyip}</span></span></div>
+                    <div class="result-item"><strong>Error:</strong><span class="value">\${data.error || 'Check failed.'}</span></div>
                 \`;
             }
         } catch (error) {
@@ -1056,7 +1038,7 @@ function generateMainHTML(faviconURL) {
     .country-drawer{margin-top:25px;}.drawer-toggle{width:100%;padding:15px;background-color:var(--bg-secondary);border:1px solid var(--border-color);border-radius:var(--border-radius-sm);color:var(--text-primary);font-size:1.1rem;font-weight:500;cursor:pointer;text-align:center;transition:background-color .2s,color .2s;position:relative}.drawer-toggle:hover,.drawer-toggle.active{background-color:var(--primary-color);color:#fff;border-color:var(--primary-color)}.drawer-toggle::after{content:'▼';font-size:.7em;position:absolute;right:20px;top:50%;transform:translateY(-50%) rotate(0);transition:transform .3s ease-in-out}.drawer-toggle.active::after{transform:translateY(-50%) rotate(180deg)}.drawer-content{max-height:0;overflow:hidden;transition:max-height .5s ease-in-out,padding .5s ease-in-out;background:var(--bg-secondary);border-radius:var(--border-radius);margin-top:10px;padding:0}.drawer-content.visible{max-height:60vh;overflow-y:auto;padding:20px}.country-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:20px}.country-item{text-align:center}.country-button{display:block;width:100%;padding-top:60%;position:relative;background-size:cover;background-position:center;border:1px solid var(--border-color);border-radius:var(--border-radius-sm);transition:transform .2s,box-shadow .2s;overflow:hidden}.country-button:hover{transform:scale(1.05);box-shadow:0 5px 15px rgba(0,0,0,.1)}.country-name{margin-top:8px;font-size:.9rem;color:var(--text-light);font-weight:500}
     .badge{display:inline-block;padding:.25em .6em;font-size:75%;font-weight:700;line-height:1;text-align:center;white-space:nowrap;vertical-align:baseline;border-radius:.25rem;color:#fff}.badge.success{background-color:var(--success-color)}.badge.error{background-color:var(--error-color)}.badge.warning{background-color:var(--warning-color)}.badge.info{background-color:var(--secondary-color)}
     .risk-link-button{display:inline-block;background-color:var(--secondary-color);color:#fff;padding:.25em .6em;font-size:75%;font-weight:700;border-radius:.25rem;text-decoration:none;transition:opacity .2s}.risk-link-button:hover{opacity:.8}
-    .result-item{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}.result-item strong{flex-shrink:0}
+    .result-item{display:flex;justify-content:flex-start;align-items:flex-start;gap:8px;margin-bottom:10px;line-height:1.5}.result-item strong{flex-shrink:0;white-space:nowrap}.result-item .value{word-break:break-all;min-width:0}
   </style>
 </head>
 <body>
