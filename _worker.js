@@ -303,17 +303,23 @@ function generateDomainCheckPageHTML({ domains, temporaryTOKEN }) {
         .failed-details summary::-webkit-details-marker{display:none}
         .failed-details summary::before{content:'\\25B8';margin-right:2px;opacity:.7;font-size:.8em;transition:transform .2s}
         .failed-details[open] summary::before{transform:rotate(90deg)}
-        .failed-list{display:flex;flex-wrap:wrap;gap:8px;padding:4px 0 14px}
-        .failed-item{display:inline-flex;align-items:center;gap:6px;max-width:100%;min-width:0;box-sizing:border-box;background-color:rgba(var(--tag-bg-color-rgb),.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(var(--error-color-rgb),.5);border-radius:9px;padding:4px 9px;font-family:'SF Mono','Courier New',Courier,monospace;font-size:.8rem}
-        .failed-item>span:first-child{overflow-wrap:anywhere;word-break:break-word;min-width:0}
+        .failed-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;padding:4px 0 14px}
+        .failed-item{display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;min-width:0;box-sizing:border-box;background-color:rgba(var(--tag-bg-color-rgb),.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(var(--error-color-rgb),.5);border-radius:9px;padding:4px 9px;font-family:'SF Mono','Courier New',Courier,monospace;font-size:.8rem}
+        .failed-item>span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 0 auto;max-width:70%}
         .failed-item .fail-reason{color:var(--subtle-text-color);font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:.75em;flex:1 1 auto;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         @media (max-width: 600px){
+            .failed-list{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px}
+            .failed-item{padding:4px 7px;font-size:.72rem}
+            .failed-item .fail-reason{font-size:.7em}
             .ip-item{flex-direction:column;align-items:stretch;gap:8px;padding:12px}
             .ip-details{justify-content:flex-start;padding-left:0;width:100%}
             .ip-tag{font-size:.8rem}
             .detail-chip{font-size:.8rem}
             .header{flex-direction:column;align-items:stretch;gap:12px}
             .button-group{margin-left:0;align-self:flex-end}
+        }
+        @media (max-width: 420px){
+            .failed-list{grid-template-columns:1fr}
         }
     </style>
 </head>
@@ -441,7 +447,7 @@ function generateDomainCheckPageHTML({ domains, temporaryTOKEN }) {
                 return;
             }
             details.style.display = '';
-            list.innerHTML = failedIPs.map(f => \`<span class="failed-item"><span onclick="copyToClipboard('\${f.ip}', this)" style="cursor:pointer;">\${f.ip}</span><span class="fail-reason" title="\${(f.error||'').replace(/"/g,'&quot;')}">\${f.error || 'Failed'}</span></span>\`).join('');
+            list.innerHTML = failedIPs.slice().sort((a,b)=>(a.error||'').length-(b.error||'').length).map(f => \`<span class="failed-item"><span onclick="copyToClipboard('\${f.ip}', this)" style="cursor:pointer;">\${f.ip}</span><span class="fail-reason" title="\${(f.error||'').replace(/"/g,'&quot;')}">\${f.error || 'Failed'}</span></span>\`).join('');
         }
 
         function updateSummary() {
@@ -582,17 +588,23 @@ function generateClientSideCheckPageHTML({ title, subtitleLabel, subtitleContent
         .failed-details summary::-webkit-details-marker{display:none}
         .failed-details summary::before{content:'\\25B8';margin-right:2px;opacity:.7;font-size:.8em;transition:transform .2s}
         .failed-details[open] summary::before{transform:rotate(90deg)}
-        .failed-list{display:flex;flex-wrap:wrap;gap:8px;padding:4px 0 14px}
-        .failed-item{display:inline-flex;align-items:center;gap:6px;max-width:100%;min-width:0;box-sizing:border-box;background-color:rgba(var(--tag-bg-color-rgb),.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(var(--error-color-rgb),.5);border-radius:9px;padding:4px 9px;font-family:'SF Mono','Courier New',Courier,monospace;font-size:.8rem}
-        .failed-item>span:first-child{overflow-wrap:anywhere;word-break:break-word;min-width:0}
+        .failed-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;padding:4px 0 14px}
+        .failed-item{display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;min-width:0;box-sizing:border-box;background-color:rgba(var(--tag-bg-color-rgb),.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(var(--error-color-rgb),.5);border-radius:9px;padding:4px 9px;font-family:'SF Mono','Courier New',Courier,monospace;font-size:.8rem}
+        .failed-item>span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 0 auto;max-width:70%}
         .failed-item .fail-reason{color:var(--subtle-text-color);font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:.75em;flex:1 1 auto;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         @media (max-width: 600px){
+            .failed-list{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px}
+            .failed-item{padding:4px 7px;font-size:.72rem}
+            .failed-item .fail-reason{font-size:.7em}
             .ip-item{flex-direction:column;align-items:stretch;gap:8px;padding:12px}
             .ip-details{justify-content:flex-start;padding-left:0;width:100%}
             .ip-tag{font-size:.8rem}
             .detail-chip{font-size:.8rem}
             .header{flex-direction:column;align-items:stretch;gap:12px}
             .button-group{margin-left:0;align-self:flex-end}
+        }
+        @media (max-width: 420px){
+            .failed-list{grid-template-columns:1fr}
         }
     </style>
 </head>
@@ -721,7 +733,7 @@ function generateClientSideCheckPageHTML({ title, subtitleLabel, subtitleContent
                 return;
             }
             details.style.display = '';
-            list.innerHTML = failedIPs.map(f => \`<span class="failed-item"><span onclick="copyToClipboard('\${f.ip}', this)" style="cursor:pointer;">\${f.ip}</span><span class="fail-reason" title="\${(f.error||'').replace(/"/g,'&quot;')}">\${f.error || 'Failed'}</span></span>\`).join('');
+            list.innerHTML = failedIPs.slice().sort((a,b)=>(a.error||'').length-(b.error||'').length).map(f => \`<span class="failed-item"><span onclick="copyToClipboard('\${f.ip}', this)" style="cursor:pointer;">\${f.ip}</span><span class="fail-reason" title="\${(f.error||'').replace(/"/g,'&quot;')}">\${f.error || 'Failed'}</span></span>\`).join('');
         }
         
         function updateSummary() {
@@ -1136,7 +1148,7 @@ const CLIENT_SCRIPT = `
             });
 
             if (failed.length > 0) {
-                const failedHTML = \`<details class="failed-details" open style="margin-top:15px;"><summary>❌ Failed IPs (\${failed.length})</summary><div class="failed-list">\${failed.map(f => \`<span class="failed-item"><span onclick="copyToClipboard('\${f.ip}', this)" style="cursor:pointer;">\${f.ip}</span><span class="fail-reason" title="\${(f.error||'').replace(/"/g,'&quot;')}">\${f.error || 'Failed'}</span></span>\`).join('')}</div></details>\`;
+                const failedHTML = \`<details class="failed-details" open style="margin-top:15px;"><summary>❌ Failed IPs (\${failed.length})</summary><div class="failed-list">\${failed.slice().sort((a,b)=>(a.error||'').length-(b.error||'').length).map(f => \`<span class="failed-item"><span onclick="copyToClipboard('\${f.ip}', this)" style="cursor:pointer;">\${f.ip}</span><span class="fail-reason" title="\${(f.error||'').replace(/"/g,'&quot;')}">\${f.error || 'Failed'}</span></span>\`).join('')}</div></details>\`;
                 ipListDiv.insertAdjacentHTML('afterend', failedHTML);
             }
             
@@ -1239,7 +1251,7 @@ const CLIENT_SCRIPT = `
         }
 
         if (failedIPs.length > 0) {
-            const failedHTML = \`<details class="failed-details" open style="margin-top:15px;"><summary>❌ Failed IPs (\${failedIPs.length})</summary><div class="failed-list">\${failedIPs.map(f => \`<span class="failed-item"><span onclick="copyToClipboard('\${f.ip}', this)" style="cursor:pointer;">\${f.ip}</span><span class="fail-reason" title="\${(f.error||'').replace(/"/g,'&quot;')}">\${f.error || 'Failed'}</span></span>\`).join('')}</div></details>\`;
+            const failedHTML = \`<details class="failed-details" open style="margin-top:15px;"><summary>❌ Failed IPs (\${failedIPs.length})</summary><div class="failed-list">\${failedIPs.slice().sort((a,b)=>(a.error||'').length-(b.error||'').length).map(f => \`<span class="failed-item"><span onclick="copyToClipboard('\${f.ip}', this)" style="cursor:pointer;">\${f.ip}</span><span class="fail-reason" title="\${(f.error||'').replace(/"/g,'&quot;')}">\${f.error || 'Failed'}</span></span>\`).join('')}</div></details>\`;
             mainCard.insertAdjacentHTML('beforeend', failedHTML);
         }
 
@@ -1352,7 +1364,7 @@ const CLIENT_SCRIPT = `
             return;
         }
         details.style.display = '';
-        list.innerHTML = currentFailedRangeIPs.map(f => \`<span class="failed-item"><span onclick="copyToClipboard('\${f.ip}', this)" style="cursor:pointer;">\${f.ip}</span><span class="fail-reason" title="\${(f.error||'').replace(/"/g,'&quot;')}">\${f.error || 'Failed'}</span></span>\`).join('');
+        list.innerHTML = currentFailedRangeIPs.slice().sort((a,b)=>(a.error||'').length-(b.error||'').length).map(f => \`<span class="failed-item"><span onclick="copyToClipboard('\${f.ip}', this)" style="cursor:pointer;">\${f.ip}</span><span class="fail-reason" title="\${(f.error||'').replace(/"/g,'&quot;')}">\${f.error || 'Failed'}</span></span>\`).join('');
     }
 `;
 
@@ -1404,19 +1416,25 @@ function generateMainHTML(faviconURL) {
     .failed-details summary::-webkit-details-marker{display:none}
     .failed-details summary::before{content:'\\25B8';margin-right:2px;opacity:.7;font-size:.8em;transition:transform .2s}
     .failed-details[open] summary::before{transform:rotate(90deg)}
-    .failed-list{display:flex;flex-wrap:wrap;gap:8px;padding:4px 0 14px}
-    .failed-item{display:inline-flex;align-items:center;gap:6px;max-width:100%;min-width:0;box-sizing:border-box;background-color:rgba(var(--bg-secondary-rgb),.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(var(--error-color-rgb),.5);border-radius:9px;padding:4px 9px;font-family:'SF Mono','Courier New',Courier,monospace;font-size:.8rem}
-    .failed-item>span:first-child{overflow-wrap:anywhere;word-break:break-word;min-width:0}
+    .failed-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;padding:4px 0 14px}
+    .failed-item{display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;min-width:0;box-sizing:border-box;background-color:rgba(var(--bg-secondary-rgb),.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(var(--error-color-rgb),.5);border-radius:9px;padding:4px 9px;font-family:'SF Mono','Courier New',Courier,monospace;font-size:.8rem}
+    .failed-item>span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 0 auto;max-width:70%}
     .failed-item .fail-reason{color:var(--text-light);font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:.75em;flex:1 1 auto;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
     .result-item{display:flex;justify-content:flex-start;align-items:flex-start;gap:8px;margin-bottom:10px;line-height:1.5}.result-item strong{flex-shrink:0;white-space:nowrap}.result-item .value{word-break:break-all;min-width:0}
     @media (max-width: 600px){
+        .failed-list{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px}
+        .failed-item{padding:4px 7px;font-size:.72rem}
+        .failed-item .fail-reason{font-size:.7em}
         .ip-item-multi{flex-direction:column;align-items:stretch;gap:8px;padding:12px 5px}
         .ip-details{justify-content:flex-start;padding-left:0}
         .ip-tag{font-size:.8rem}
         .detail-chip{font-size:.8rem}
         .country-grid{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:14px}
         .card,.api-docs{padding:18px}
+    }
+    @media (max-width: 420px){
+        .failed-list{grid-template-columns:1fr}
     }
   </style>
 </head>
