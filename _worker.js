@@ -72,7 +72,7 @@ async function checkProxyIP(proxyIPInput, env) {
     const cleanIp = hostToCheck.replace(/\[|\]/g, '');
 
     const apiUrls = [
-        `https://YourServerIP:port/api/v1/check?proxyip=${encodeURIComponent(proxyIPInput)}`,
+        `https://YourServerIP:PORT/api/v1/check?proxyip=${encodeURIComponent(proxyIPInput)}`,
         `https://YourServerRender.onrender.com/api/v1/check?proxyip=${encodeURIComponent(proxyIPInput)}`
     ];
     let lastApiError = 'No response from APIs.';
@@ -301,7 +301,7 @@ function generateDomainCheckPageHTML({ domains, temporaryTOKEN }) {
         .failed-details{margin-top:16px;background-color:rgba(var(--error-color-rgb),.06);border:1px solid var(--glass-border);border-radius:16px;padding:2px 14px;}
         .failed-details summary{cursor:pointer;padding:10px 0;font-size:.85rem;font-weight:600;color:var(--error-color);display:flex;align-items:center;gap:10px;list-style:none}
         .failed-details summary::-webkit-details-marker{display:none}
-        .failed-details summary::before{content:'\25B8';margin-right:2px;opacity:.7;font-size:.8em;transition:transform .2s}
+        .failed-details summary::before{content:'\\25B8';margin-right:2px;opacity:.7;font-size:.8em;transition:transform .2s}
         .failed-details[open] summary::before{transform:rotate(90deg)}
         .failed-list{display:flex;flex-wrap:wrap;gap:8px;padding:4px 0 14px}
         .failed-item{display:inline-flex;align-items:center;gap:6px;max-width:100%;min-width:0;box-sizing:border-box;background-color:rgba(var(--tag-bg-color-rgb),.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(var(--error-color-rgb),.5);border-radius:9px;padding:4px 9px;font-family:'SF Mono','Courier New',Courier,monospace;font-size:.8rem}
@@ -580,7 +580,7 @@ function generateClientSideCheckPageHTML({ title, subtitleLabel, subtitleContent
         .failed-details{margin-top:16px;background-color:rgba(var(--error-color-rgb),.06);border:1px solid var(--glass-border);border-radius:16px;padding:2px 14px;}
         .failed-details summary{cursor:pointer;padding:10px 0;font-size:.85rem;font-weight:600;color:var(--error-color);display:flex;align-items:center;gap:10px;list-style:none}
         .failed-details summary::-webkit-details-marker{display:none}
-        .failed-details summary::before{content:'\25B8';margin-right:2px;opacity:.7;font-size:.8em;transition:transform .2s}
+        .failed-details summary::before{content:'\\25B8';margin-right:2px;opacity:.7;font-size:.8em;transition:transform .2s}
         .failed-details[open] summary::before{transform:rotate(90deg)}
         .failed-list{display:flex;flex-wrap:wrap;gap:8px;padding:4px 0 14px}
         .failed-item{display:inline-flex;align-items:center;gap:6px;max-width:100%;min-width:0;box-sizing:border-box;background-color:rgba(var(--tag-bg-color-rgb),.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(var(--error-color-rgb),.5);border-radius:9px;padding:4px 9px;font-family:'SF Mono','Courier New',Courier,monospace;font-size:.8rem}
