@@ -310,7 +310,15 @@ function generateDomainCheckPageHTML({ domains, temporaryTOKEN }) {
         body.dark-mode .theme-toggle .moon-icon { display: block; fill: var(--text-color); stroke: var(--text-color); }
         .badge{position:relative;overflow:hidden;isolation:isolate;display:inline-flex;align-items:center;justify-content:center;height:24px;box-sizing:border-box;padding:0 .8em;font-size:.72rem;font-weight:700;line-height:1;letter-spacing:.03em;text-align:center;white-space:nowrap;vertical-align:middle;border-radius:9px;border:1px solid rgba(255,255,255,.35);color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.35);backdrop-filter:blur(14px) saturate(180%);-webkit-backdrop-filter:blur(14px) saturate(180%)}.badge::before{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(160deg,rgba(255,255,255,.38),rgba(255,255,255,0) 55%)}.badge.success{background-color:rgba(var(--success-color-rgb),.5);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 3px 8px rgba(var(--success-color-rgb),.3)}.badge.error{background-color:rgba(var(--error-color-rgb),.5);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 3px 8px rgba(var(--error-color-rgb),.3)}.badge.warning{background-color:rgba(var(--warning-color-rgb),.5);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 3px 8px rgba(var(--warning-color-rgb),.28)}.badge.critical{background-color:rgba(var(--critical-color-rgb),.62);border-color:rgba(255,255,255,.2);box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 3px 10px rgba(var(--critical-color-rgb),.45),0 0 0 1px rgba(0,0,0,.15)}.badge.info{background-color:rgba(var(--secondary-color-rgb),.5);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 3px 8px rgba(0,0,0,.12)}
         .risk-link-button{position:relative;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;height:24px;box-sizing:border-box;background-color:rgba(var(--secondary-color-rgb),.82);backdrop-filter:blur(8px) saturate(160%);-webkit-backdrop-filter:blur(8px) saturate(160%);color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.18);padding:0 .8em;font-size:.72rem;font-weight:700;letter-spacing:.03em;border-radius:9px;border:1px solid rgba(255,255,255,.3);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 3px 8px rgba(0,0,0,.15);text-decoration:none;transition:opacity .2s,transform .15s}.risk-link-button::before{content:'';position:absolute;inset:0;background:linear-gradient(160deg,rgba(255,255,255,.32),rgba(255,255,255,0) 55%);pointer-events:none}.risk-link-button:hover{opacity:.85;transform:translateY(-1px)}
-        .failed-details{margin-top:16px;background-color:rgba(var(--error-color-rgb),.06);border:1px solid var(--glass-border);border-radius:16px;padding:2px 14px;}.failed-details summary{cursor:pointer;padding:10px 0;font-size:.85rem;font-weight:600;color:var(--error-color);display:flex;align-items:center;gap:10px;list-style:none}.failed-details summary::-webkit-details-marker{display:none}.failed-details summary::before{content:'\\25B8';margin-right:2px;opacity:.7;font-size:.8em;transition:transform .2s}.failed-details[open] summary::before{transform:rotate(90deg)}.clear-failed-btn{background:none;border:1px solid var(--error-color);color:var(--error-color);border-radius:.5rem;font-size:.7rem;padding:.2em .6em;cursor:pointer;margin-left:auto;font-weight:600}.clear-failed-btn:hover{background-color:var(--error-color);color:#fff}.failed-list{display:flex;flex-wrap:wrap;gap:8px;padding:4px 0 14px}.failed-item{display:inline-flex;align-items:center;gap:6px;max-width:100%;background-color:rgba(var(--tag-bg-color-rgb),.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--glass-border);border-radius:9px;padding:4px 6px 4px 9px;font-family:'SF Mono','Courier New',Courier,monospace;font-size:.8rem}.failed-item .fail-reason{color:var(--subtle-text-color);font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:.75em;max-width:160px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.remove-chip{background:none;border:none;color:var(--error-color);cursor:pointer;font-size:1rem;line-height:1;padding:0 2px;font-weight:700}.remove-chip:hover{opacity:.6}
+        .failed-details{margin-top:16px;background-color:rgba(var(--error-color-rgb),.06);border:1px solid var(--glass-border);border-radius:16px;padding:2px 14px;}
+        .failed-details summary{cursor:pointer;padding:10px 0;font-size:.85rem;font-weight:600;color:var(--error-color);display:flex;align-items:center;gap:10px;list-style:none}
+        .failed-details summary::-webkit-details-marker{display:none}
+        .failed-details summary::before{content:'\25B8';margin-right:2px;opacity:.7;font-size:.8em;transition:transform .2s}
+        .failed-details[open] summary::before{transform:rotate(90deg)}
+        .failed-list{display:flex;flex-wrap:wrap;gap:8px;padding:4px 0 14px}
+        .failed-item{display:inline-flex;align-items:center;gap:6px;max-width:100%;min-width:0;box-sizing:border-box;background-color:rgba(var(--tag-bg-color-rgb),.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(var(--error-color-rgb),.5);border-radius:9px;padding:4px 9px;font-family:'SF Mono','Courier New',Courier,monospace;font-size:.8rem}
+        .failed-item>span:first-child{overflow-wrap:anywhere;word-break:break-word;min-width:0}
+        .failed-item .fail-reason{color:var(--subtle-text-color);font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:.75em;flex:1 1 auto;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         @media (max-width: 600px){
             .ip-item{flex-direction:column;align-items:stretch;gap:8px;padding:12px}
             .ip-details{justify-content:flex-start;padding-left:0;width:100%}
@@ -340,7 +348,7 @@ function generateDomainCheckPageHTML({ domains, temporaryTOKEN }) {
             <p style="text-align:center; padding: 20px;">Processing...</p>
         </main>
         <details id="failed-details" class="failed-details" style="display:none;">
-            <summary>❌ Failed IPs (<span id="failed-count">0</span>) <button type="button" class="clear-failed-btn" onclick="event.preventDefault();event.stopPropagation();clearFailedIPs()">Clear All</button></summary>
+            <summary>❌ Failed IPs (<span id="failed-count">0</span>)</summary>
             <div id="failed-list" class="failed-list"></div>
         </details>
         <div id="action-buttons-container"></div>
@@ -437,17 +445,7 @@ function generateDomainCheckPageHTML({ domains, temporaryTOKEN }) {
                 return;
             }
             details.style.display = '';
-            list.innerHTML = failedIPs.map(f => \`<span class="failed-item"><span onclick="copyToClipboard('\${f.ip}', this)" style="cursor:pointer;">\${f.ip}</span><span class="fail-reason" title="\${(f.error||'').replace(/"/g,'&quot;')}">\${f.error || 'Failed'}</span><button type="button" class="remove-chip" title="Remove" onclick="removeFailedIP('\${f.ip}')">×</button></span>\`).join('');
-        }
-
-        function removeFailedIP(ip) {
-            failedIPs = failedIPs.filter(f => f.ip !== ip);
-            renderFailedResults();
-        }
-
-        function clearFailedIPs() {
-            failedIPs = [];
-            renderFailedResults();
+            list.innerHTML = failedIPs.map(f => \`<span class="failed-item"><span onclick="copyToClipboard('\${f.ip}', this)" style="cursor:pointer;">\${f.ip}</span><span class="fail-reason" title="\${(f.error||'').replace(/"/g,'&quot;')}">\${f.error || 'Failed'}</span></span>\`).join('');
         }
 
         function updateSummary() {
@@ -586,7 +584,15 @@ function generateClientSideCheckPageHTML({ title, subtitleLabel, subtitleContent
         body.dark-mode .theme-toggle .moon-icon { display: block; fill: var(--text-color); stroke: var(--text-color); }
         .badge{position:relative;overflow:hidden;isolation:isolate;display:inline-flex;align-items:center;justify-content:center;height:24px;box-sizing:border-box;padding:0 .8em;font-size:.72rem;font-weight:700;line-height:1;letter-spacing:.03em;text-align:center;white-space:nowrap;vertical-align:middle;border-radius:9px;border:1px solid rgba(255,255,255,.35);color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.35);backdrop-filter:blur(14px) saturate(180%);-webkit-backdrop-filter:blur(14px) saturate(180%)}.badge::before{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(160deg,rgba(255,255,255,.38),rgba(255,255,255,0) 55%)}.badge.success{background-color:rgba(var(--success-color-rgb),.5);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 3px 8px rgba(var(--success-color-rgb),.3)}.badge.error{background-color:rgba(var(--error-color-rgb),.5);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 3px 8px rgba(var(--error-color-rgb),.3)}.badge.warning{background-color:rgba(var(--warning-color-rgb),.5);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 3px 8px rgba(var(--warning-color-rgb),.28)}.badge.critical{background-color:rgba(var(--critical-color-rgb),.62);border-color:rgba(255,255,255,.2);box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 3px 10px rgba(var(--critical-color-rgb),.45),0 0 0 1px rgba(0,0,0,.15)}.badge.info{background-color:rgba(var(--secondary-color-rgb),.5);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 3px 8px rgba(0,0,0,.12)}
         .risk-link-button{position:relative;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;height:24px;box-sizing:border-box;background-color:rgba(var(--secondary-color-rgb),.82);backdrop-filter:blur(8px) saturate(160%);-webkit-backdrop-filter:blur(8px) saturate(160%);color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.18);padding:0 .8em;font-size:.72rem;font-weight:700;letter-spacing:.03em;border-radius:9px;border:1px solid rgba(255,255,255,.3);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 3px 8px rgba(0,0,0,.15);text-decoration:none;transition:opacity .2s,transform .15s}.risk-link-button::before{content:'';position:absolute;inset:0;background:linear-gradient(160deg,rgba(255,255,255,.32),rgba(255,255,255,0) 55%);pointer-events:none}.risk-link-button:hover{opacity:.85;transform:translateY(-1px)}
-        .failed-details{margin-top:16px;background-color:rgba(var(--error-color-rgb),.06);border:1px solid var(--glass-border);border-radius:16px;padding:2px 14px;}.failed-details summary{cursor:pointer;padding:10px 0;font-size:.85rem;font-weight:600;color:var(--error-color);display:flex;align-items:center;gap:10px;list-style:none}.failed-details summary::-webkit-details-marker{display:none}.failed-details summary::before{content:'\\25B8';margin-right:2px;opacity:.7;font-size:.8em;transition:transform .2s}.failed-details[open] summary::before{transform:rotate(90deg)}.clear-failed-btn{background:none;border:1px solid var(--error-color);color:var(--error-color);border-radius:.5rem;font-size:.7rem;padding:.2em .6em;cursor:pointer;margin-left:auto;font-weight:600}.clear-failed-btn:hover{background-color:var(--error-color);color:#fff}.failed-list{display:flex;flex-wrap:wrap;gap:8px;padding:4px 0 14px}.failed-item{display:inline-flex;align-items:center;gap:6px;max-width:100%;background-color:rgba(var(--tag-bg-color-rgb),.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--glass-border);border-radius:9px;padding:4px 6px 4px 9px;font-family:'SF Mono','Courier New',Courier,monospace;font-size:.8rem}.failed-item .fail-reason{color:var(--subtle-text-color);font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:.75em;max-width:160px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.remove-chip{background:none;border:none;color:var(--error-color);cursor:pointer;font-size:1rem;line-height:1;padding:0 2px;font-weight:700}.remove-chip:hover{opacity:.6}
+        .failed-details{margin-top:16px;background-color:rgba(var(--error-color-rgb),.06);border:1px solid var(--glass-border);border-radius:16px;padding:2px 14px;}
+        .failed-details summary{cursor:pointer;padding:10px 0;font-size:.85rem;font-weight:600;color:var(--error-color);display:flex;align-items:center;gap:10px;list-style:none}
+        .failed-details summary::-webkit-details-marker{display:none}
+        .failed-details summary::before{content:'\25B8';margin-right:2px;opacity:.7;font-size:.8em;transition:transform .2s}
+        .failed-details[open] summary::before{transform:rotate(90deg)}
+        .failed-list{display:flex;flex-wrap:wrap;gap:8px;padding:4px 0 14px}
+        .failed-item{display:inline-flex;align-items:center;gap:6px;max-width:100%;min-width:0;box-sizing:border-box;background-color:rgba(var(--tag-bg-color-rgb),.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(var(--error-color-rgb),.5);border-radius:9px;padding:4px 9px;font-family:'SF Mono','Courier New',Courier,monospace;font-size:.8rem}
+        .failed-item>span:first-child{overflow-wrap:anywhere;word-break:break-word;min-width:0}
+        .failed-item .fail-reason{color:var(--subtle-text-color);font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:.75em;flex:1 1 auto;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         @media (max-width: 600px){
             .ip-item{flex-direction:column;align-items:stretch;gap:8px;padding:12px}
             .ip-details{justify-content:flex-start;padding-left:0;width:100%}
@@ -616,7 +622,7 @@ function generateClientSideCheckPageHTML({ title, subtitleLabel, subtitleContent
             <p style="text-align:center; padding: 20px;">Processing...</p>
         </main>
         <details id="failed-details" class="failed-details" style="display:none;">
-            <summary>❌ Failed IPs (<span id="failed-count">0</span>) <button type="button" class="clear-failed-btn" onclick="event.preventDefault();event.stopPropagation();clearFailedIPs()">Clear All</button></summary>
+            <summary>❌ Failed IPs (<span id="failed-count">0</span>)</summary>
             <div id="failed-list" class="failed-list"></div>
         </details>
         <div id="action-buttons-container"></div>
@@ -711,17 +717,7 @@ function generateClientSideCheckPageHTML({ title, subtitleLabel, subtitleContent
                 return;
             }
             details.style.display = '';
-            list.innerHTML = failedIPs.map(f => \`<span class="failed-item"><span onclick="copyToClipboard('\${f.ip}', this)" style="cursor:pointer;">\${f.ip}</span><span class="fail-reason" title="\${(f.error||'').replace(/"/g,'&quot;')}">\${f.error || 'Failed'}</span><button type="button" class="remove-chip" title="Remove" onclick="removeFailedIP('\${f.ip}')">×</button></span>\`).join('');
-        }
-
-        function removeFailedIP(ip) {
-            failedIPs = failedIPs.filter(f => f.ip !== ip);
-            renderFailedResults();
-        }
-
-        function clearFailedIPs() {
-            failedIPs = [];
-            renderFailedResults();
+            list.innerHTML = failedIPs.map(f => \`<span class="failed-item"><span onclick="copyToClipboard('\${f.ip}', this)" style="cursor:pointer;">\${f.ip}</span><span class="fail-reason" title="\${(f.error||'').replace(/"/g,'&quot;')}">\${f.error || 'Failed'}</span></span>\`).join('');
         }
         
         function updateSummary() {
@@ -1133,7 +1129,7 @@ const CLIENT_SCRIPT = `
             });
 
             if (failed.length > 0) {
-                const failedHTML = \`<details class="failed-details" open style="margin-top:15px;"><summary>❌ Failed IPs (\${failed.length}) <button type="button" class="clear-failed-btn" onclick="event.preventDefault();event.stopPropagation();this.closest('.failed-details').remove();">Clear All</button></summary><div class="failed-list">\${failed.map(f => \`<span class="failed-item"><span onclick="copyToClipboard('\${f.ip}', this)" style="cursor:pointer;">\${f.ip}</span><span class="fail-reason" title="\${(f.error||'').replace(/"/g,'&quot;')}">\${f.error || 'Failed'}</span><button type="button" class="remove-chip" title="Remove" onclick="this.closest('.failed-item').remove();">×</button></span>\`).join('')}</div></details>\`;
+                const failedHTML = \`<details class="failed-details" open style="margin-top:15px;"><summary>❌ Failed IPs (\${failed.length})</summary><div class="failed-list">\${failed.map(f => \`<span class="failed-item"><span onclick="copyToClipboard('\${f.ip}', this)" style="cursor:pointer;">\${f.ip}</span><span class="fail-reason" title="\${(f.error||'').replace(/"/g,'&quot;')}">\${f.error || 'Failed'}</span></span>\`).join('')}</div></details>\`;
                 ipListDiv.insertAdjacentHTML('afterend', failedHTML);
             }
             
@@ -1236,7 +1232,7 @@ const CLIENT_SCRIPT = `
         }
 
         if (failedIPs.length > 0) {
-            const failedHTML = \`<details class="failed-details" open style="margin-top:15px;"><summary>❌ Failed IPs (\${failedIPs.length}) <button type="button" class="clear-failed-btn" onclick="event.preventDefault();event.stopPropagation();this.closest('.failed-details').remove();">Clear All</button></summary><div class="failed-list">\${failedIPs.map(f => \`<span class="failed-item"><span onclick="copyToClipboard('\${f.ip}', this)" style="cursor:pointer;">\${f.ip}</span><span class="fail-reason" title="\${(f.error||'').replace(/"/g,'&quot;')}">\${f.error || 'Failed'}</span><button type="button" class="remove-chip" title="Remove" onclick="this.closest('.failed-item').remove();">×</button></span>\`).join('')}</div></details>\`;
+            const failedHTML = \`<details class="failed-details" open style="margin-top:15px;"><summary>❌ Failed IPs (\${failedIPs.length})</summary><div class="failed-list">\${failedIPs.map(f => \`<span class="failed-item"><span onclick="copyToClipboard('\${f.ip}', this)" style="cursor:pointer;">\${f.ip}</span><span class="fail-reason" title="\${(f.error||'').replace(/"/g,'&quot;')}">\${f.error || 'Failed'}</span></span>\`).join('')}</div></details>\`;
             mainCard.insertAdjacentHTML('beforeend', failedHTML);
         }
 
@@ -1352,7 +1348,7 @@ const CLIENT_SCRIPT = `
             return;
         }
         details.style.display = '';
-        list.innerHTML = currentFailedRangeIPs.map(f => \`<span class="failed-item"><span onclick="copyToClipboard('\${f.ip}', this)" style="cursor:pointer;">\${f.ip}</span><span class="fail-reason" title="\${(f.error||'').replace(/"/g,'&quot;')}">\${f.error || 'Failed'}</span><button type="button" class="remove-chip" title="Remove" onclick="currentFailedRangeIPs=currentFailedRangeIPs.filter(x=>x.ip!=='\${f.ip}');updateFailedRangeIPsDisplay();">×</button></span>\`).join('');
+        list.innerHTML = currentFailedRangeIPs.map(f => \`<span class="failed-item"><span onclick="copyToClipboard('\${f.ip}', this)" style="cursor:pointer;">\${f.ip}</span><span class="fail-reason" title="\${(f.error||'').replace(/"/g,'&quot;')}">\${f.error || 'Failed'}</span></span>\`).join('');
     }
 `;
 
@@ -1406,13 +1402,11 @@ function generateMainHTML(faviconURL) {
     .failed-details summary::-webkit-details-marker{display:none}
     .failed-details summary::before{content:'\\25B8';margin-right:2px;opacity:.7;font-size:.8em;transition:transform .2s}
     .failed-details[open] summary::before{transform:rotate(90deg)}
-    .clear-failed-btn{background:none;border:1px solid var(--error-color);color:var(--error-color);border-radius:.5rem;font-size:.7rem;padding:.2em .6em;cursor:pointer;margin-left:auto;font-weight:600}
-    .clear-failed-btn:hover{background-color:var(--error-color);color:#fff}
     .failed-list{display:flex;flex-wrap:wrap;gap:8px;padding:4px 0 14px}
-    .failed-item{display:inline-flex;align-items:center;gap:6px;max-width:100%;background-color:rgba(var(--bg-secondary-rgb),.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--glass-border);border-radius:9px;padding:4px 6px 4px 9px;font-family:'SF Mono','Courier New',Courier,monospace;font-size:.8rem}
-    .failed-item .fail-reason{color:var(--text-light);font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:.75em;max-width:160px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .remove-chip{background:none;border:none;color:var(--error-color);cursor:pointer;font-size:1rem;line-height:1;padding:0 2px;font-weight:700}
-    .remove-chip:hover{opacity:.6}
+    .failed-item{display:inline-flex;align-items:center;gap:6px;max-width:100%;min-width:0;box-sizing:border-box;background-color:rgba(var(--bg-secondary-rgb),.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(var(--error-color-rgb),.5);border-radius:9px;padding:4px 9px;font-family:'SF Mono','Courier New',Courier,monospace;font-size:.8rem}
+    .failed-item>span:first-child{overflow-wrap:anywhere;word-break:break-word;min-width:0}
+    .failed-item .fail-reason{color:var(--text-light);font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:.75em;flex:1 1 auto;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
     .result-item{display:flex;justify-content:flex-start;align-items:flex-start;gap:8px;margin-bottom:10px;line-height:1.5}.result-item strong{flex-shrink:0;white-space:nowrap}.result-item .value{word-break:break-all;min-width:0}
     @media (max-width: 600px){
         .ip-item-multi{flex-direction:column;align-items:stretch;gap:8px;padding:12px 5px}
@@ -1453,7 +1447,7 @@ function generateMainHTML(faviconURL) {
          <div id="successfulRangeIPsList" class="domain-ip-list"></div>
          <button id="copyRangeBtn" class="btn-primary" style="display:none; margin-top: 15px; width: 100%;">Copy Successful IPs</button>
          <details id="rangeFailedDetails" class="failed-details" style="display:none; margin-top:15px;">
-            <summary>❌ Failed IPs (<span id="rangeFailedCount">0</span>) <button type="button" class="clear-failed-btn" onclick="event.preventDefault();event.stopPropagation();currentFailedRangeIPs=[];updateFailedRangeIPsDisplay();">Clear All</button></summary>
+            <summary>❌ Failed IPs (<span id="rangeFailedCount">0</span>)</summary>
             <div id="rangeFailedList" class="failed-list"></div>
          </details>
       </div>
