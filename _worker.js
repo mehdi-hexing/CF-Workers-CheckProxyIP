@@ -5,7 +5,6 @@ import { connect } from 'cloudflare:sockets';
 async function checkProxyIPTCP(proxyIP, port) {
     try {
         const startTime = Date.now();
-        // IPv6 literals must be bracketed when handed to the sockets API
         const connectHost = (proxyIP.includes(':') && !proxyIP.startsWith('[')) ? `[${proxyIP}]` : proxyIP;
         const tcpSocket = connect({ hostname: connectHost, port: port });
         const ping = Date.now() - startTime;
@@ -135,10 +134,6 @@ async function checkProxyIP(proxyIPInput, env) {
     };
 }
 
-// Fetches and normalizes data from the Cloudflare-scamalytics.pages.dev mirror.
-// This single mirror is reused both as a geo-info fallback (when ip-api.com fails)
-// and as a risk-score fallback (when the official Scamalytics API is unavailable
-// or its request quota has been exhausted).
 async function getScamalyticsFallback(ip) {
     const cleanIp = ip.replace(/\[|\]/g, '');
     try {
@@ -169,8 +164,6 @@ async function getIpInfo(ip) {
         console.error("Geo API (ip-api.com) failed:", e.message);
     }
 
-    // ip-api.com failed (or explicitly returned "fail", which happens for some
-    // ranges/hostnames) -> fall back to the scamalytics mirror for basic geo data.
     const fallback = await getScamalyticsFallback(ip);
     if (fallback && fallback.details) {
         const d = fallback.details;
@@ -250,11 +243,6 @@ function parseIPRangeServer(rangeInput) {
 }
 
 const forgivingIPv4Regex = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
-
-// The naive "long alternation" IPv6 regex commonly used for this is fragile:
-// JS regex alternation isn't longest-match, so it stops at the first alternative
-// that succeeds (e.g. matching only "2001:db8::" out of "2001:db8::1"). Instead,
-// grab plausible IPv6-shaped candidates broadly, then validate each one properly.
 function isValidIPv6Core(str) {
     if (str === '') return false;
     if (str.indexOf('::') !== -1) {
@@ -377,9 +365,6 @@ function generateDomainCheckPageHTML({ domains, temporaryTOKEN }) {
             if (persistTimer) return;
             persistTimer = setTimeout(persistResultsNow, 350);
         }
-        // Flush whatever has completed so far right before the tab is torn down
-        // (refresh, close, navigate away) so a mid-scan reload can resume instead
-        // of starting over and re-testing everything from scratch.
         window.addEventListener('pagehide', persistResultsNow);
         window.addEventListener('beforeunload', persistResultsNow);
         document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') persistResultsNow(); });
@@ -393,9 +378,20 @@ function generateDomainCheckPageHTML({ domains, temporaryTOKEN }) {
 
         async function fetchAPI(path, params) {
             params.append('token', TEMP_TOKEN);
-            const response = await fetch('/api' + path + '?' + params.toString());
-            const data = await response.json();
-            return data;
+            const url = '/api' + path + '?' + params.toString();
+            let lastError;
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    const response = await fetch(url);
+                    return await response.json();
+                } catch (e) {
+                    lastError = e;
+                    const isNetworkFailure = e instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(e.message || '');
+                    if (!isNetworkFailure || attempt === 3) throw e;
+                    await new Promise(r => setTimeout(r, 500 * attempt));
+                }
+            }
+            throw lastError;
         }
 
         function formatRiskBadge(riskData, ip) {
@@ -475,9 +471,6 @@ function generateDomainCheckPageHTML({ domains, temporaryTOKEN }) {
                  document.getElementById('results-container').innerHTML = '<p style="text-align:center;">Could not resolve any IPs.</p>';
                  return;
             }
-
-            // Resume from any cached results for this exact URL (domain list) so a
-            // mid-scan refresh never throws away already-completed work.
             try {
                 const savedJSON = localStorage.getItem(storageKey);
                 if (savedJSON) allResults = JSON.parse(savedJSON).results || {};
@@ -665,9 +658,20 @@ function generateClientSideCheckPageHTML({ title, subtitleLabel, subtitleContent
 
         async function fetchAPI(path, params) {
             params.append('token', TEMP_TOKEN);
-            const response = await fetch('/api' + path + '?' + params.toString());
-            const data = await response.json();
-            return data;
+            const url = '/api' + path + '?' + params.toString();
+            let lastError;
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    const response = await fetch(url);
+                    return await response.json();
+                } catch (e) {
+                    lastError = e;
+                    const isNetworkFailure = e instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(e.message || '');
+                    if (!isNetworkFailure || attempt === 3) throw e;
+                    await new Promise(r => setTimeout(r, 500 * attempt));
+                }
+            }
+            throw lastError;
         }
         
         function formatRiskBadge(riskData, ip) {
@@ -912,10 +916,20 @@ const CLIENT_SCRIPT = `
         }
         params.append('token', TEMP_TOKEN);
         const fullPathWithParams = '/api' + path + '?' + params.toString();
-        
-        const response = await fetch(fullPathWithParams);
-        const data = await response.json();
-        return data;
+
+        let lastError;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                const response = await fetch(fullPathWithParams);
+                return await response.json();
+            } catch (e) {
+                lastError = e;
+                const isNetworkFailure = e instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(e.message || '');
+                if (!isNetworkFailure || attempt === 3) throw e;
+                await new Promise(r => setTimeout(r, 500 * attempt));
+            }
+        }
+        throw lastError;
     }
 
     const isIPAddress = (input) => /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(input.split(':')[0].replace(/[\\[\\]]/g, ''));
@@ -957,13 +971,6 @@ const CLIENT_SCRIPT = `
         return \`<span class="badge \${badgeClass}">\${risk} (Score: \${score})</span>\`;
     }
 
-    // --- Resumable result cache -------------------------------------------------
-    // The main page runs domain / multi-IP / range checks in-place (no page nav-
-    // igation, so there was previously zero persistence at all). Refreshing mid-
-    // scan used to throw away every result and start over from IP #1. This
-    // fixes it: results are cached per distinct input set (hashed), written
-    // incrementally as each IP finishes (throttled), and force-flushed right
-    // before the tab is torn down so nothing completed is ever lost.
     function simpleHash(str) {
         let hash = 0;
         for (let i = 0; i < str.length; i++) hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
@@ -1268,9 +1275,6 @@ const CLIENT_SCRIPT = `
         const cachedResults = loadCachedResults(storageKey);
         const persister = makePersister(storageKey, () => cachedResults);
 
-        // Restore anything already tested in a previous (possibly interrupted) run
-        // for this exact range set, so a mid-scan refresh resumes instead of
-        // re-testing thousands of IPs from IP #1 again.
         let checkedCount = 0;
         for (const ip of allIPsToTest) {
             const c = cachedResults[ip];
@@ -1354,8 +1358,6 @@ const CLIENT_SCRIPT = `
 
 function generateMainHTML(faviconURL) {
   const year = new Date().getFullYear();
-  
-  // Country UI elements restored as per user request.
   const countries = {
     'ALL': 'All Countries', 'AE': 'United Arab Emirates', 'AL': 'Albania', 'AM': 'Armenia', 'AR': 'Argentina', 'AT': 'Austria', 'AU': 'Australia', 'AZ': 'Azerbaijan', 'BE': 'Belgium', 'BG': 'Bulgaria', 'BR': 'Brazil', 'CA': 'Canada', 'CH': 'Switzerland', 'CN': 'China', 'CO': 'Colombia', 'CY': 'Cyprus', 'CZ': 'Czech Republic', 'DE': 'Germany', 'DK': 'Denmark', 'EE': 'Estonia', 'ES': 'Spain', 'FI': 'Finland', 'FR': 'France', 'GB': 'United Kingdom', 'GI': 'Gibraltar', 'HK': 'Hong Kong', 'HU': 'Hungary', 'ID': 'Indonesia', 'IE': 'Ireland', 'IL': 'Israel', 'IN': 'India', 'IR': 'Iran', 'IT': 'Italy', 'JP': 'Japan', 'KR': 'South Korea', 'KZ': 'Kazakhstan', 'LT': 'Lithuania', 'LU': 'Luxembourg', 'LV': 'Latvia', 'MD': 'Moldova', 'MX': 'Mexico', 'MY': 'Malaysia', 'NL': 'Netherlands', 'NZ': 'New Zealand', 'PH': 'Philippines', 'PL': 'Poland', 'PR': 'Puerto Rico', 'PT': 'Portugal', 'QA': 'Qatar', 'RO': 'Romania', 'RS': 'Serbia', 'RU': 'Russia', 'SA': 'Saudi Arabia', 'SC': 'Seychelles', 'SE': 'Sweden', 'SG': 'Singapore', 'SK': 'Slovakia', 'TH': 'Thailand', 'TR': 'Turkey', 'TW': 'Taiwan', 'UA': 'Ukraine', 'US': 'United States', 'UZ': 'Uzbekistan', 'VN': 'Vietnam'
   };
@@ -1481,7 +1483,6 @@ function generateMainHTML(faviconURL) {
 </html>`;
 }
 
-// --- Main Fetch Handler ---
 export default {
     async fetch(request, env, ctx) {
         const url = new URL(request.url);
@@ -1489,7 +1490,6 @@ export default {
         const UA = request.headers.get('User-Agent') || 'null';
         const hostname = url.hostname;
         
-        // --- Web UI Routes ---
         if (path.toLowerCase().startsWith('/domain/')) {
             const domains_string = decodeURIComponent(path.substring('/domain/'.length));
             const domains = domains_string.split(',').map(s => s.trim()).filter(Boolean);
@@ -1559,7 +1559,6 @@ export default {
             return new Response(CLIENT_SCRIPT, { headers: { "Content-Type": "application/javascript;charset=UTF-8" } });
         }
 
-        // --- API Routes ---
         if (path.toLowerCase().startsWith('/api/')) {
             const timestampForToken = Math.ceil(new Date().getTime() / (1000 * 60 * 31));
             const temporaryTOKEN = await doubleHash(hostname + timestampForToken + UA);
@@ -1588,10 +1587,6 @@ export default {
                     const result = await checkProxyIP(proxyIPInput, env);
                     return new Response(JSON.stringify(result), { status: 200, headers: { "Content-Type": "application/json" } });
                 } catch (error) {
-                    // Something unexpected blew up before checkProxyIP could return its own
-                    // clean success/fail object (e.g. a parsing bug). Never let this surface
-                    // as a raw Cloudflare error page — always fall back to a direct TCP check
-                    // from the worker itself so the client still gets a usable JSON result.
                     console.error('Unexpected error in /api/check, forcing a direct worker-side TCP check:', error.message);
                     try {
                         const cleanIp = proxyIPInput.replace(/\[|\]/g, '').split(':')[0];
@@ -1626,14 +1621,12 @@ export default {
                 const ip = url.searchParams.get('ip');
                 if (!ip) return new Response(JSON.stringify({ error: 'Missing IP parameter' }), { status: 400, headers: { 'Content-Type': 'application/json' }});
 
-                // Try the official Scamalytics API first (if credentials are configured).
                 if (env.SCAMALYTICS_USERNAME && env.SCAMALYTICS_API_KEY) {
                     try {
                         const scamalyticsUrl = `${env.SCAMALYTICS_API_BASE_URL || 'https://api.scamalytics.com'}/${env.SCAMALYTICS_USERNAME}/?key=${env.SCAMALYTICS_API_KEY}&ip=${ip}`;
                         const response = await fetch(scamalyticsUrl);
                         if (response.ok) {
                             const data = await response.json();
-                            // A valid, successful lookup -> return it as-is.
                             if (data?.scamalytics?.status === 'ok') {
                                 return new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } });
                             }
@@ -1645,8 +1638,6 @@ export default {
                         console.error('Scamalytics official API request failed, falling back:', error.message);
                     }
                 }
-
-                // Official API missing, rate-limited, or failed -> use the fallback mirror.
                 const fallback = await getScamalyticsFallback(ip);
                 if (fallback && fallback.info) {
                     const normalized = {
